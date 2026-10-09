@@ -3,7 +3,8 @@ import {
   Phone, PhoneOff, Mic, MicOff, Play, RotateCcw, Download, 
   FileText, CheckCircle2, XCircle, AlertCircle, Sparkles, 
   Settings, Bot, User, Volume2, ArrowRight, ShieldCheck, 
-  ExternalLink, Globe, RefreshCw, Radio, Layers, Check, Copy, Code
+  ExternalLink, Globe, RefreshCw, Radio, Layers, Check, Copy, Code,
+  Sliders, MessageSquare
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { INITIAL_STATE, CHECKLIST_ITEMS, processTurn, getEarliestMissingItem } from './stateEngine';
@@ -21,7 +22,8 @@ export default function App() {
     customer_name: "Rahul Sharma",
     agent_name: "Priya",
     agent_gender: "Female",
-    language_to_speak: "English"
+    language_to_speak: "English",
+    useNeuralTTS: true
   });
 
   // Call & State Management
@@ -32,16 +34,26 @@ export default function App() {
   const [inputText, setInputText] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState("");
   const [activeScenarioId, setActiveScenarioId] = useState(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   const transcriptEndRef = useRef(null);
   const recognitionRef = useRef(null);
+  const silenceTimerRef = useRef(null);
+  const speechBufferRef = useRef("");
+  const currentAudioRef = useRef(null);
+  const isSpeakingRef = useRef(false);
+
+  // Keep isSpeakingRef in sync with state
+  useEffect(() => {
+    isSpeakingRef.current = isSpeaking;
+  }, [isSpeaking]);
 
   // Auto-scroll transcript
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [transcript]);
+  }, [transcript, interimTranscript]);
 
   // Call duration timer
   useEffect(() => {
@@ -54,35 +66,68 @@ export default function App() {
     return () => clearInterval(timer);
   }, [callActive]);
 
-  // Speech Recognition (Microphone) setup
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = config.language_to_speak === "Hindi" ? "hi-IN" : "en-IN";
-
-      recognition.onstart = () => setIsListening(true);
-      recognition.onend = () => setIsListening(false);
-      recognition.onresult = (event) => {
-        const text = event.results[0][0].transcript;
-        if (text) {
-          handleCustomerUtterance(text);
-        }
-      };
-      recognitionRef.current = recognition;
+  // Natural Human Voice Speech Synthesis (Edge Neural TTS + Fallback)
+  const speakText = async (text) => {
+    // Stop any currently playing audio
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
     }
-  }, [config.language_to_speak]);
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
 
-  // Text-to-Speech (TTS)
-  const speakText = (text) => {
+    setIsSpeaking(true);
+
+    // Try high-definition Neural voice first (Priya / Neerja)
+    if (config.useNeuralTTS) {
+      const voice = config.language_to_speak === "Hindi" ? "hi-IN-SwaraNeural" : "en-IN-NeerjaNeural";
+      const ttsUrl = `http://127.0.0.1:8000/api/tts?text=${encodeURIComponent(text)}&voice=${voice}`;
+
+      try {
+        const audio = new Audio(ttsUrl);
+        currentAudioRef.current = audio;
+
+        audio.onplay = () => setIsSpeaking(true);
+        audio.onended = () => {
+          setIsSpeaking(false);
+          currentAudioRef.current = null;
+        };
+        audio.onerror = () => {
+          speakBrowserFemaleVoice(text);
+        };
+
+        await audio.play();
+        return;
+      } catch (err) {
+        console.warn("Backend Neural TTS unavailable, using enhanced browser female voice:", err);
+      }
+    }
+
+    // Fallback: Enhanced browser female voice
+    speakBrowserFemaleVoice(text);
+  };
+
+  const speakBrowserFemaleVoice = (text) => {
     if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+
+    // Select the best female Indian/English voice (Never Microsoft David)
+    const femaleVoice = voices.find(v => 
+      (v.lang.includes('IN') && (v.name.includes('Heera') || v.name.includes('Neerja') || v.name.includes('Swara') || v.name.toLowerCase().includes('female'))) ||
+      v.name.includes('Zira') ||
+      v.name.includes('Google UK English Female') ||
+      v.name.includes('Samantha') ||
+      v.name.toLowerCase().includes('female')
+    ) || voices.find(v => !v.name.includes('David') && !v.name.includes('George') && !v.name.includes('Mark'));
+
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
     utterance.lang = config.language_to_speak === "Hindi" ? "hi-IN" : "en-IN";
-    utterance.rate = 1.05;
-    utterance.pitch = config.agent_gender === "Female" ? 1.15 : 0.95;
+    utterance.rate = 1.0;
+    utterance.pitch = config.agent_gender === "Female" ? 1.2 : 0.95;
 
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
@@ -91,11 +136,72 @@ export default function App() {
     window.speechSynthesis.speak(utterance);
   };
 
+  // Speech Recognition (Microphone) with Silence Debounce
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = config.language_to_speak === "Hindi" ? "hi-IN" : "en-IN";
+
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => {
+        if (callActive && !isSpeakingRef.current) {
+          try { recognition.start(); } catch (e) {}
+        } else {
+          setIsListening(false);
+        }
+      };
+
+      recognition.onresult = (event) => {
+        // Do not listen to mic while agent is actively speaking to prevent echo
+        if (isSpeakingRef.current) return;
+
+        let interim = '';
+        let final = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript;
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        const currentWords = (final || interim).trim();
+        if (currentWords) {
+          setInterimTranscript(currentWords);
+          speechBufferRef.current = currentWords;
+
+          // Clear previous silence timer
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+          }
+
+          // DEBOUNCE: Wait for 1.6s of silence before committing the full sentence
+          silenceTimerRef.current = setTimeout(() => {
+            if (speechBufferRef.current.trim()) {
+              const fullSentence = speechBufferRef.current.trim();
+              speechBufferRef.current = "";
+              setInterimTranscript("");
+              handleCustomerUtterance(fullSentence);
+            }
+          }, 1600);
+        }
+      };
+
+      recognitionRef.current = recognition;
+    }
+  }, [config.language_to_speak, callActive]);
+
   // Start Call
   const handleStartCall = () => {
     playRingingSound();
     setCallActive(true);
     setState(INITIAL_STATE);
+    setInterimTranscript("");
+    speechBufferRef.current = "";
 
     setTimeout(() => {
       playConnectedChime();
@@ -112,17 +218,34 @@ export default function App() {
       };
       setTranscript([initialMsg]);
       speakText(opening);
+
+      // Start mic listening after agent opening finishes
+      setTimeout(() => {
+        try {
+          recognitionRef.current?.start();
+        } catch (e) {}
+      }, 3500);
     }, 1200);
   };
 
   // End Call
   const handleEndCall = () => {
     playHangupTone();
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+    }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    if (recognitionRef.current && isListening) recognitionRef.current.stop();
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+    }
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
     setCallActive(false);
     setIsListening(false);
     setIsSpeaking(false);
+    setInterimTranscript("");
   };
 
   // Toggle Microphone
@@ -133,9 +256,11 @@ export default function App() {
     }
     if (isListening) {
       recognitionRef.current?.stop();
+      setIsListening(false);
     } else {
       try {
         recognitionRef.current?.start();
+        setIsListening(true);
       } catch (err) {
         console.error("Speech recognition error:", err);
       }
@@ -145,6 +270,12 @@ export default function App() {
   // Process Utterance
   const handleCustomerUtterance = (text) => {
     if (!text.trim()) return;
+
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+    }
+    setInterimTranscript("");
+    speechBufferRef.current = "";
 
     const userMsg = {
       speaker: "Customer",
@@ -170,11 +301,11 @@ export default function App() {
       speakText(result.response);
 
       if (result.state.handoff_ready) {
-        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+        confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } });
       }
 
       if (result.is_ended) {
-        setTimeout(() => handleEndCall(), 1800);
+        setTimeout(() => handleEndCall(), 2500);
       }
     }, 400);
   };
@@ -205,7 +336,7 @@ export default function App() {
 
     for (let i = 0; i < scenario.utterances.length; i++) {
       const userUtterance = scenario.utterances[i];
-      await new Promise(r => setTimeout(r, 2400));
+      await new Promise(r => setTimeout(r, 2600));
 
       const uMsg = {
         speaker: "Customer",
@@ -232,7 +363,7 @@ export default function App() {
       }
 
       if (res.is_ended) {
-        setTimeout(() => handleEndCall(), 1600);
+        setTimeout(() => handleEndCall(), 2000);
         break;
       }
     }
@@ -259,7 +390,7 @@ export default function App() {
   const copySystemPrompt = () => {
     const promptText = `# 1. AGENT IDENTITY, CONTEXT & TECHNICAL VARIABLES
 - You are {{agent_name}}, an intelligent AI Voice Agent representing {{company_name}}.
-- Agent Gender: {{agent_gender}} (Strict adherence required).
+- Agent Gender: {{agent_gender}} (Strict adherence required in tone and grammar).
 - Customer Name: {{customer_name}}.
 - Language: {{language_to_speak}}.
 
@@ -313,7 +444,7 @@ export default function App() {
             <span className="text-white/20">|</span>
             <div className="flex items-center gap-1.5 text-emerald-400">
               <Globe size={14} />
-              <span>Production Voice Engine v1.0</span>
+              <span>Neural Voice: Priya (en-IN-Neerja)</span>
             </div>
           </div>
         </div>
@@ -333,7 +464,7 @@ export default function App() {
                   LAP Underwriting
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Pre-approved ₹75L Loan Against Property Conversational Qualifier</p>
+              <p className="text-xs text-slate-400">Natural Voice AI • 7-Item Sequential Qualification Engine</p>
             </div>
           </div>
 
@@ -341,7 +472,7 @@ export default function App() {
           <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
             <button
               onClick={() => setActiveTab('studio')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'studio' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -349,7 +480,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('matrix')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'matrix' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -357,7 +488,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('scenarios')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'scenarios' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -365,7 +496,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('prompt')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'prompt' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -378,13 +509,13 @@ export default function App() {
             <button
               onClick={downloadTranscriptJson}
               disabled={transcript.length === 0}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Download size={14} /> Export Logs
             </button>
             <button
               onClick={copySystemPrompt}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/30 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition-all flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/30 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               {copiedPrompt ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
               {copiedPrompt ? "Copied!" : "Copy Prompt"}
@@ -400,14 +531,11 @@ export default function App() {
         <div className="lg:col-span-7 flex flex-col gap-5">
           {/* Active Call Widget Card */}
           <div className="glass-panel rounded-2xl p-5 border border-white/10 shadow-2xl relative overflow-hidden flex flex-col">
-            {/* Background Glow */}
-            <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
             {/* Calling Header */}
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-lg text-white shadow-lg">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-600 flex items-center justify-center font-bold text-lg text-white shadow-lg">
                     {config.agent_name[0]}
                   </div>
                   {callActive && (
@@ -417,15 +545,15 @@ export default function App() {
 
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-white">{config.agent_name}</span>
-                    <span className="text-[11px] px-2 py-0.5 rounded-md bg-white/10 text-slate-300">
-                      AI Loan Underwriter
+                    <span className="font-bold text-sm text-white">{config.agent_name} (Female Voice)</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 font-semibold">
+                      Neural Studio Audio
                     </span>
                   </div>
                   <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
                     <span>{config.company_name}</span>
                     <span>•</span>
-                    <span>To: {config.customer_name}</span>
+                    <span>Calling: {config.customer_name}</span>
                   </div>
                 </div>
               </div>
@@ -462,8 +590,9 @@ export default function App() {
                 isListening={isListening} 
               />
               <div className="text-[11px] text-slate-400 tracking-wide font-medium flex items-center gap-2">
-                {isSpeaking && <span className="text-blue-400">Agent Speaking...</span>}
-                {isListening && <span className="text-red-400 animate-pulse">Listening to Customer Microphone...</span>}
+                {isSpeaking && <span className="text-rose-400 font-semibold animate-pulse">Priya Speaking (Natural Voice)...</span>}
+                {isListening && !interimTranscript && <span className="text-emerald-400">Listening to Customer... (Speak freely)</span>}
+                {interimTranscript && <span className="text-blue-400">Detecting sentence: "{interimTranscript}..."</span>}
                 {!isSpeaking && !isListening && callActive && <span>Call Connected • Speak into mic or type below</span>}
                 {!callActive && <span>Agent Idle • Click Start Call to Begin</span>}
               </div>
@@ -479,44 +608,59 @@ export default function App() {
                   <div>
                     <p className="text-sm font-medium text-slate-300">Ready for Live Underwriting</p>
                     <p className="text-xs text-slate-500 mt-1">
-                      Click <strong>Start Call</strong> to simulate via mic, or click any <strong>Test Scenario</strong> on the right.
+                      Click <strong>Start Voice Call</strong> to speak through your microphone or run a test scenario.
                     </p>
                   </div>
                 </div>
               ) : (
-                transcript.map((msg, idx) => {
-                  const isAgent = msg.speaker === "Agent";
-                  return (
-                    <div 
-                      key={idx} 
-                      className={`flex flex-col max-w-[85%] ${isAgent ? 'self-start' : 'self-end'}`}
-                    >
-                      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400 mb-1 px-1">
-                        {isAgent ? (
-                          <>
-                            <Bot size={12} className="text-blue-400" />
-                            <span>{config.agent_name} ({config.company_name})</span>
-                          </>
-                        ) : (
-                          <>
-                            <User size={12} className="text-indigo-400" />
-                            <span>{config.customer_name}</span>
-                          </>
-                        )}
-                        <span>•</span>
-                        <span>{msg.timestamp}</span>
-                      </div>
+                <>
+                  {transcript.map((msg, idx) => {
+                    const isAgent = msg.speaker === "Agent";
+                    return (
+                      <div 
+                        key={idx} 
+                        className={`flex flex-col max-w-[85%] ${isAgent ? 'self-start' : 'self-end'}`}
+                      >
+                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400 mb-1 px-1">
+                          {isAgent ? (
+                            <>
+                              <Bot size={12} className="text-rose-400" />
+                              <span>{config.agent_name} ({config.company_name})</span>
+                            </>
+                          ) : (
+                            <>
+                              <User size={12} className="text-indigo-400" />
+                              <span>{config.customer_name}</span>
+                            </>
+                          )}
+                          <span>•</span>
+                          <span>{msg.timestamp}</span>
+                        </div>
 
-                      <div className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-sm ${
-                        isAgent 
-                          ? 'bg-slate-800/90 text-slate-100 border border-white/10 rounded-tl-sm' 
-                          : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-sm'
-                      }`}>
-                        {msg.text}
+                        <div className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-sm ${
+                          isAgent 
+                            ? 'bg-slate-800/90 text-slate-100 border border-white/10 rounded-tl-sm' 
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-sm'
+                        }`}>
+                          {msg.text}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Live Interim Speech Bubble (Draft sentence being spoken) */}
+                  {interimTranscript && (
+                    <div className="flex flex-col max-w-[85%] self-end opacity-85">
+                      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-400 mb-1 px-1">
+                        <User size={12} />
+                        <span>Speaking now...</span>
+                      </div>
+                      <div className="p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed bg-blue-950/80 text-blue-200 border border-blue-500/40 rounded-tr-sm italic">
+                        "{interimTranscript}"
                       </div>
                     </div>
-                  );
-                })
+                  )}
+                </>
               )}
               <div ref={transcriptEndRef} />
             </div>
@@ -544,19 +688,32 @@ export default function App() {
                   onClick={toggleListening}
                   className={`p-3 rounded-xl border transition-all cursor-pointer ${
                     isListening 
-                      ? 'bg-red-500 text-white border-red-400 animate-pulse' 
+                      ? 'bg-emerald-600 text-white border-emerald-400' 
                       : 'bg-white/5 hover:bg-white/10 text-slate-200 border-white/10'
                   }`}
-                  title={isListening ? "Listening... click to pause" : "Click to speak into microphone"}
+                  title={isListening ? "Microphone active. Listening for your speech" : "Click to activate microphone"}
                 >
                   {isListening ? <Mic size={20} /> : <MicOff size={20} />}
                 </button>
+
+                {/* Force Submit Button for current speech buffer */}
+                {interimTranscript && (
+                  <button
+                    onClick={() => handleCustomerUtterance(interimTranscript)}
+                    className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 shadow-md"
+                    title="Finish speaking and submit response now"
+                  >
+                    <span>Done Speaking</span>
+                    <ArrowRight size={14} />
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
                     handleEndCall();
                     setState(INITIAL_STATE);
                     setTranscript([]);
+                    setInterimTranscript("");
                   }}
                   className="p-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all cursor-pointer"
                   title="Reset Conversation"
@@ -573,7 +730,7 @@ export default function App() {
                   disabled={!callActive}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleCustomerUtterance(inputText)}
-                  placeholder={callActive ? "Type customer utterance or speak into mic..." : "Start call to speak or type..."}
+                  placeholder={callActive ? "Type full response or speak naturally into mic..." : "Start call to speak or type..."}
                   className="flex-1 bg-slate-900/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 disabled:opacity-40"
                 />
 

@@ -4,6 +4,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 import os
+import io
+import edge_tts
+from fastapi.responses import StreamingResponse
 
 from .agent import VoiceAgent
 
@@ -43,6 +46,20 @@ class RunScenarioRequest(BaseModel):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "Home Credit LAP Voice Agent API"}
+
+@app.get("/api/tts")
+async def get_tts(text: str, voice: Optional[str] = "en-IN-NeerjaNeural"):
+    """Generates natural human-like neural audio for Priya and other Indian voices."""
+    try:
+        comm = edge_tts.Communicate(text, voice)
+        audio_stream = io.BytesIO()
+        async for chunk in comm.stream():
+            if chunk["type"] == "audio":
+                audio_stream.write(chunk["data"])
+        audio_stream.seek(0)
+        return StreamingResponse(audio_stream, media_type="audio/mpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/start")
 def start_call(req: StartCallRequest):
