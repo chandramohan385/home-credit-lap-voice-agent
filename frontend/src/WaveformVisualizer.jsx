@@ -20,20 +20,20 @@ export default function WaveformVisualizer({ isActive, isSpeaking, isListening }
       ctx.beginPath();
       ctx.moveTo(0, centerY);
       ctx.lineTo(width, centerY);
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
       if (isActive) {
-        // Multi-frequency wave animation
+        // Multi-frequency wave animation tuned for Light Theme
         const numWaves = 3;
         const colors = isSpeaking
-          ? ['rgba(59, 130, 246, 0.8)', 'rgba(99, 102, 241, 0.6)', 'rgba(168, 85, 247, 0.4)']
+          ? ['rgba(37, 99, 235, 0.85)', 'rgba(79, 70, 229, 0.65)', 'rgba(147, 51, 234, 0.45)']
           : isListening
-          ? ['rgba(239, 68, 68, 0.8)', 'rgba(249, 115, 22, 0.6)', 'rgba(234, 179, 8, 0.4)']
-          : ['rgba(148, 163, 184, 0.3)', 'rgba(148, 163, 184, 0.2)', 'rgba(148, 163, 184, 0.1)'];
+          ? ['rgba(225, 29, 72, 0.85)', 'rgba(234, 88, 12, 0.65)', 'rgba(202, 138, 4, 0.45)']
+          : ['rgba(148, 163, 184, 0.4)', 'rgba(203, 213, 225, 0.3)', 'rgba(226, 232, 240, 0.2)'];
 
-        const baseAmplitude = isSpeaking ? 18 : isListening ? 14 : 3;
+        const baseAmplitude = isSpeaking ? 16 : isListening ? 12 : 3;
 
         for (let w = 0; w < numWaves; w++) {
           ctx.beginPath();
@@ -44,7 +44,6 @@ export default function WaveformVisualizer({ isActive, isSpeaking, isListening }
           const amp = baseAmplitude * (1 - w * 0.25);
 
           for (let x = 0; x < width; x++) {
-            // Envelope shaping: taper at edges
             const envelope = Math.sin((x / width) * Math.PI);
             const y = centerY + Math.sin(x * freq + phase * speed) * amp * envelope;
             ctx.lineTo(x, y);
@@ -71,11 +70,11 @@ export default function WaveformVisualizer({ isActive, isSpeaking, isListening }
   }, [isActive, isSpeaking, isListening]);
 
   return (
-    <div className="w-full flex items-center justify-center py-2">
+    <div className="w-full flex items-center justify-center py-1">
       <canvas
         ref={canvasRef}
         width={380}
-        height={50}
+        height={46}
         className="w-full max-w-sm rounded-lg"
       />
     </div>

@@ -4,7 +4,7 @@ import {
   FileText, CheckCircle2, XCircle, AlertCircle, Sparkles, 
   Settings, Bot, User, Volume2, ArrowRight, ShieldCheck, 
   ExternalLink, Globe, RefreshCw, Radio, Layers, Check, Copy, Code,
-  Sliders, MessageSquare
+  Sliders, MessageSquare, Clock, Zap, Award, PlayCircle, PauseCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { INITIAL_STATE, CHECKLIST_ITEMS, processTurn, getEarliestMissingItem } from './stateEngine';
@@ -14,12 +14,12 @@ import { playRingingSound, playConnectedChime, playHangupTone } from './audioEff
 
 export default function App() {
   // Navigation / View Tabs
-  const [activeTab, setActiveTab] = useState('studio'); // 'studio' | 'matrix' | 'scenarios' | 'prompt'
+  const [activeTab, setActiveTab] = useState('evidence'); // 'evidence' | 'studio' | 'matrix' | 'scenarios' | 'prompt'
 
   // Agent Configuration
   const [config, setConfig] = useState({
     company_name: "Home Credit",
-    customer_name: "Rahul Sharma",
+    customer_name: "Chandra Mohan",
     agent_name: "Priya",
     agent_gender: "Female",
     language_to_speak: "English",
@@ -37,6 +37,11 @@ export default function App() {
   const [interimTranscript, setInterimTranscript] = useState("");
   const [activeScenarioId, setActiveScenarioId] = useState(null);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Verified Call Audio Playback State
+  const [isPlayingVerifiedAudio, setIsPlayingVerifiedAudio] = useState(false);
+  const verifiedAudioRef = useRef(null);
 
   const transcriptEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -45,17 +50,14 @@ export default function App() {
   const currentAudioRef = useRef(null);
   const isSpeakingRef = useRef(false);
 
-  // Keep isSpeakingRef in sync with state
   useEffect(() => {
     isSpeakingRef.current = isSpeaking;
   }, [isSpeaking]);
 
-  // Auto-scroll transcript
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcript, interimTranscript]);
 
-  // Call duration timer
   useEffect(() => {
     let timer;
     if (callActive) {
@@ -66,9 +68,8 @@ export default function App() {
     return () => clearInterval(timer);
   }, [callActive]);
 
-  // Natural Human Voice Speech Synthesis (Edge Neural TTS + Fallback)
+  // Natural Human Voice Speech Synthesis
   const speakText = async (text) => {
-    // Stop any currently playing audio
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
@@ -79,7 +80,6 @@ export default function App() {
 
     setIsSpeaking(true);
 
-    // Try high-definition Neural voice first (Priya / Neerja)
     if (config.useNeuralTTS) {
       const voice = config.language_to_speak === "Hindi" ? "hi-IN-SwaraNeural" : "en-IN-NeerjaNeural";
       const ttsUrl = `http://127.0.0.1:8000/api/tts?text=${encodeURIComponent(text)}&voice=${voice}`;
@@ -100,11 +100,10 @@ export default function App() {
         await audio.play();
         return;
       } catch (err) {
-        console.warn("Backend Neural TTS unavailable, using enhanced browser female voice:", err);
+        console.warn("Backend Neural TTS fallback to browser female voice:", err);
       }
     }
 
-    // Fallback: Enhanced browser female voice
     speakBrowserFemaleVoice(text);
   };
 
@@ -113,7 +112,6 @@ export default function App() {
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();
 
-    // Select the best female Indian/English voice (Never Microsoft David)
     const femaleVoice = voices.find(v => 
       (v.lang.includes('IN') && (v.name.includes('Heera') || v.name.includes('Neerja') || v.name.includes('Swara') || v.name.toLowerCase().includes('female'))) ||
       v.name.includes('Zira') ||
@@ -155,7 +153,6 @@ export default function App() {
       };
 
       recognition.onresult = (event) => {
-        // Do not listen to mic while agent is actively speaking to prevent echo
         if (isSpeakingRef.current) return;
 
         let interim = '';
@@ -174,12 +171,10 @@ export default function App() {
           setInterimTranscript(currentWords);
           speechBufferRef.current = currentWords;
 
-          // Clear previous silence timer
           if (silenceTimerRef.current) {
             clearTimeout(silenceTimerRef.current);
           }
 
-          // DEBOUNCE: Wait for 1.6s of silence before committing the full sentence
           silenceTimerRef.current = setTimeout(() => {
             if (speechBufferRef.current.trim()) {
               const fullSentence = speechBufferRef.current.trim();
@@ -205,11 +200,7 @@ export default function App() {
 
     setTimeout(() => {
       playConnectedChime();
-      const opening = config.language_to_speak === "Hindi"
-        ? (config.agent_gender === "Female"
-            ? `Namaste! Kya meri baat ${config.customer_name} ji se ho rahi hai? Main ${config.company_name} se ${config.agent_name} bol rahi hoon.`
-            : `Namaste! Kya meri baat ${config.customer_name} ji se ho rahi hai? Main ${config.company_name} se ${config.agent_name} bol raha hoon.`)
-        : `Hello, may I speak with ${config.customer_name}? I am ${config.agent_name} calling from ${config.company_name}.`;
+      const opening = `Hello, may I speak with ${config.customer_name}? I am ${config.agent_name} calling from ${config.company_name}.`;
 
       const initialMsg = {
         speaker: "Agent",
@@ -219,7 +210,6 @@ export default function App() {
       setTranscript([initialMsg]);
       speakText(opening);
 
-      // Start mic listening after agent opening finishes
       setTimeout(() => {
         try {
           recognitionRef.current?.start();
@@ -286,7 +276,6 @@ export default function App() {
     setTranscript(prev => [...prev, userMsg]);
     setInputText("");
 
-    // Execute state engine turn
     const result = processTurn(state, text, config);
     setState(result.state);
 
@@ -374,6 +363,8 @@ export default function App() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
       candidate: "Avuram Chandra Mohan Reddy",
       github: "https://github.com/chandramohan385/home-credit-lap-voice-agent",
+      retell_call_id: "call_b12864a07ba0ba81d1b7905ea270",
+      retell_public_url: "https://dashboard.retellai.com/org_URqeX7dedVCNCf9UI/call-history?history=call_b12864a07ba0ba81d1b7905ea270",
       config,
       final_state: state,
       transcript
@@ -386,31 +377,11 @@ export default function App() {
     downloadAnchor.remove();
   };
 
-  // Copy System Prompt
-  const copySystemPrompt = () => {
-    const promptText = `# 1. AGENT IDENTITY, CONTEXT & TECHNICAL VARIABLES
-- You are {{agent_name}}, an intelligent AI Voice Agent representing {{company_name}}.
-- Agent Gender: {{agent_gender}} (Strict adherence required in tone and grammar).
-- Customer Name: {{customer_name}}.
-- Language: {{language_to_speak}}.
-
-# 2. 7-ITEM ELIGIBILITY CHECKLIST & BUSINESS RULES
-1. Property Type: Residential, Commercial, Industrial eligible. Agricultural = Disqualify.
-2. Ownership: Sole and Joint eligible.
-3. Original Documents: Original papers mandatory. Photocopies = Disqualify.
-4. Loan Amount: <= 75 Lakhs. If > 75L, offer 75L cap before disqualification.
-5. Occupation & Income Mode: Bank payout required. Cash income = Disqualify.
-6. Market Value: Capture customer estimate without cutoff.
-7. Tenure: 3 to 15 years. <3 or >15 = Disqualify.
-
-# 3. SPECIAL LOGIC SWITCHES
-- Existing Loan / EMI Reduction: Transfer to specialist and end call.
-- Busy Customer: Capture callback time and end call.
-- Handoff Gate: Hand off only after all 7 items pass.`;
-
-    navigator.clipboard.writeText(promptText);
-    setCopiedPrompt(true);
-    setTimeout(() => setCopiedPrompt(false), 2000);
+  const copyRetellLink = () => {
+    const link = "https://dashboard.retellai.com/org_URqeX7dedVCNCf9UI/call-history?history=call_b12864a07ba0ba81d1b7905ea270";
+    navigator.clipboard.writeText(link);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const formatTime = (secs) => {
@@ -420,15 +391,15 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-      {/* Top Banner & Submission Link Bar */}
-      <div className="bg-gradient-to-r from-blue-900/60 via-indigo-900/40 to-slate-900 border-b border-white/10 px-4 py-2.5 text-xs">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+      {/* Top Banner & Submission Header */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border-b border-slate-800 px-4 py-2.5 text-xs">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="font-semibold text-slate-200">SalesAgents AI - AI Intern (Prompt Engineer) Hiring Assignment</span>
+            <span className="font-semibold text-slate-100">SalesAgents AI - AI Intern (Prompt Engineer) Hiring Assignment</span>
             <span className="text-slate-400">• Candidate:</span>
-            <span className="font-medium text-blue-400">Avuram Chandra Mohan Reddy</span>
+            <span className="font-medium text-sky-400">Avuram Chandra Mohan Reddy</span>
           </div>
 
           <div className="flex items-center gap-4 text-slate-300">
@@ -438,605 +409,693 @@ export default function App() {
               rel="noreferrer"
               className="flex items-center gap-1.5 hover:text-white transition-colors"
             >
-              <Code size={14} />
-              <span>github.com/chandramohan385</span>
+              <Code size={14} className="text-sky-400" />
+              <span>github.com/chandramohan385/home-credit-lap-voice-agent</span>
             </a>
-            <span className="text-white/20">|</span>
-            <div className="flex items-center gap-1.5 text-emerald-400">
-              <Globe size={14} />
-              <span>Neural Voice: Priya (en-IN-Neerja)</span>
-            </div>
+            <span className="text-slate-600">|</span>
+            <button
+              onClick={copyRetellLink}
+              className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 cursor-pointer font-medium"
+            >
+              <Award size={14} />
+              <span>{copiedLink ? "Retell Link Copied!" : "Retell Call Verified: 898ms Latency"}</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Main App Header */}
-      <header className="border-b border-white/10 bg-slate-950/70 backdrop-blur-xl sticky top-0 z-50 px-4 py-3">
+      {/* Main Navbar */}
+      <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-50 px-4 py-3 shadow-xs">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20">
-              <Phone size={22} className="text-white" />
+            <div className="p-2.5 bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-md shadow-red-500/20 text-white">
+              <Phone size={22} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold tracking-tight text-white">Home Credit Voice Agent</h1>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                  LAP Underwriting
+                <h1 className="text-lg font-bold tracking-tight text-slate-900">Home Credit Voice Agent</h1>
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-700 border border-red-200">
+                  LAP Pre-Approval
                 </span>
               </div>
-              <p className="text-xs text-slate-400">Natural Voice AI • 7-Item Sequential Qualification Engine</p>
+              <p className="text-xs text-slate-500">Autonomous Conversational Loan Underwriting Engine (up to ₹75 Lakhs)</p>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/10">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              onClick={() => setActiveTab('evidence')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'evidence' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Award size={14} className="text-emerald-600" /> Verified Retell Call
+            </button>
             <button
               onClick={() => setActiveTab('studio')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'studio' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                activeTab === 'studio' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Radio size={14} /> Voice Studio
+              <Radio size={14} className="text-blue-600" /> Live Voice Studio
             </button>
             <button
               onClick={() => setActiveTab('matrix')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'matrix' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                activeTab === 'matrix' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <ShieldCheck size={14} /> 7-Slot Underwriter
+              <ShieldCheck size={14} className="text-indigo-600" /> 7-Slot Underwriter
             </button>
             <button
               onClick={() => setActiveTab('scenarios')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'scenarios' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                activeTab === 'scenarios' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Sparkles size={14} /> Scenario Lab (10)
+              <Sparkles size={14} className="text-amber-600" /> Scenario Lab (10)
             </button>
             <button
               onClick={() => setActiveTab('prompt')}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'prompt' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+                activeTab === 'prompt' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <FileText size={14} /> System Prompt
+              <FileText size={14} className="text-slate-700" /> System Prompt
             </button>
           </div>
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            <a
+              href="https://dashboard.retellai.com/org_URqeX7dedVCNCf9UI/call-history?history=call_b12864a07ba0ba81d1b7905ea270"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-all flex items-center gap-1.5"
+            >
+              <ExternalLink size={14} /> Open in Retell
+            </a>
             <button
               onClick={downloadTranscriptJson}
-              disabled={transcript.length === 0}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
             >
               <Download size={14} /> Export Logs
-            </button>
-            <button
-              onClick={copySystemPrompt}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600/30 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              {copiedPrompt ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-              {copiedPrompt ? "Copied!" : "Copy Prompt"}
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: Live Phone Console (7 cols on desktop) */}
-        <div className="lg:col-span-7 flex flex-col gap-5">
-          {/* Active Call Widget Card */}
-          <div className="glass-panel rounded-2xl p-5 border border-white/10 shadow-2xl relative overflow-hidden flex flex-col">
-            {/* Calling Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500 to-indigo-600 flex items-center justify-center font-bold text-lg text-white shadow-lg">
-                    {config.agent_name[0]}
-                  </div>
-                  {callActive && (
-                    <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full animate-ping"></span>
-                  )}
-                </div>
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
 
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-white">{config.agent_name} (Female Voice)</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/30 font-semibold">
-                      Neural Studio Audio
-                    </span>
+        {/* TAB 1: VERIFIED RETELL CALL EVIDENCE (Default Highlight View) */}
+        {activeTab === 'evidence' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Col: Official Call Summary & Telemetry (7 cols) */}
+            <div className="lg:col-span-7 flex flex-col gap-5">
+              <div className="light-panel p-6 border-slate-200 bg-white">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+                      <Award size={22} />
+                    </div>
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">Official Retell AI Call Evidence</h2>
+                      <p className="text-xs text-slate-500">Live Telephony Voice Call with Candidate (Chandra Mohan)</p>
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-                    <span>{config.company_name}</span>
-                    <span>•</span>
-                    <span>Calling: {config.customer_name}</span>
-                  </div>
-                </div>
-              </div>
 
-              {/* Status Badge & Call Timer */}
-              <div className="flex flex-col items-end gap-1">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
-                  state.handoff_ready ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                  state.disqualified ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                  state.transfer_required ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                  callActive ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                  'bg-slate-800 text-slate-400'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full ${callActive ? 'bg-current animate-pulse' : 'bg-slate-500'}`}></span>
-                  {state.handoff_ready ? "QUALIFIED (HANDOFF)" :
-                   state.disqualified ? "DISQUALIFIED" :
-                   state.transfer_required ? "TRANSFER SPECIALIST" :
-                   callActive ? "CALL ACTIVE" : "STANDBY"}
-                </span>
-
-                {callActive && (
-                  <span className="text-xs font-mono text-slate-400 tracking-wider">
-                    {formatTime(callDuration)}
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    VERIFIED & QUALIFIED
                   </span>
-                )}
-              </div>
-            </div>
+                </div>
 
-            {/* Audio Waveform Visualizer */}
-            <div className="my-2 bg-slate-950/60 rounded-xl p-2 border border-white/5 flex flex-col items-center justify-center min-h-[70px]">
-              <WaveformVisualizer 
-                isActive={callActive} 
-                isSpeaking={isSpeaking} 
-                isListening={isListening} 
-              />
-              <div className="text-[11px] text-slate-400 tracking-wide font-medium flex items-center gap-2">
-                {isSpeaking && <span className="text-rose-400 font-semibold animate-pulse">Priya Speaking (Natural Voice)...</span>}
-                {isListening && !interimTranscript && <span className="text-emerald-400">Listening to Customer... (Speak freely)</span>}
-                {interimTranscript && <span className="text-blue-400">Detecting sentence: "{interimTranscript}..."</span>}
-                {!isSpeaking && !isListening && callActive && <span>Call Connected • Speak into mic or type below</span>}
-                {!callActive && <span>Agent Idle • Click Start Call to Begin</span>}
-              </div>
-            </div>
-
-            {/* Live Conversation Transcript */}
-            <div className="h-72 overflow-y-auto pr-1 flex flex-col gap-3 my-2 scroll-smooth">
-              {transcript.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 gap-3 py-10">
-                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-slate-400">
-                    <Phone size={22} />
+                {/* Retell Telemetry Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-5">
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                      <Zap size={12} className="text-amber-500" /> Latency
+                    </span>
+                    <span className="text-base font-bold text-slate-900 mt-1 block">898 ms</span>
+                    <span className="text-[10px] text-emerald-600 font-medium">Sub-second Speed</span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-300">Ready for Live Underwriting</p>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Click <strong>Start Voice Call</strong> to speak through your microphone or run a test scenario.
-                    </p>
+
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                      <Clock size={12} className="text-blue-500" /> Duration
+                    </span>
+                    <span className="text-base font-bold text-slate-900 mt-1 block">1m 57s</span>
+                    <span className="text-[10px] text-slate-500">Full 7-Step Check</span>
+                  </div>
+
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                      <Bot size={12} className="text-indigo-500" /> LLM Tokens
+                    </span>
+                    <span className="text-base font-bold text-slate-900 mt-1 block">2,743</span>
+                    <span className="text-[10px] text-slate-500">Cost: $0.284</span>
+                  </div>
+
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                      <User size={12} className="text-rose-500" /> Sentiment
+                    </span>
+                    <span className="text-base font-bold text-slate-900 mt-1 block text-emerald-600">Positive</span>
+                    <span className="text-[10px] text-slate-500">Agent Hand-off</span>
                   </div>
                 </div>
-              ) : (
-                <>
-                  {transcript.map((msg, idx) => {
+
+                {/* AI Executive Summary Card */}
+                <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-4 my-2">
+                  <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Bot size={14} className="text-blue-600" /> Retell AI Underwriting Analysis & Summary
+                  </h3>
+                  <p className="text-xs sm:text-sm text-blue-950 leading-relaxed font-normal">
+                    "Chandra Mohan expressed interest in a loan against residential property and provided qualification details: sole ownership, original documents, salaried bank-transfer income, approximately ₹2 crore property value, ₹60 lakh loan requirement, and 10-year tenure. The agent confirmed preliminary eligibility and said a senior loan expert would call shortly to discuss rates and finalize the application."
+                  </p>
+                </div>
+
+                {/* Verified Audio Player & Link Actions */}
+                <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-700">Call ID:</span>
+                    <code className="text-xs bg-slate-100 px-2 py-0.5 rounded-md font-mono text-slate-700 border border-slate-200">
+                      call_b12864a07ba0ba81d1b7905ea270
+                    </code>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={copyRetellLink}
+                      className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      {copiedLink ? <Check size={14} /> : <Copy size={14} />}
+                      <span>{copiedLink ? "Link Copied!" : "Copy Retell Call Link"}</span>
+                    </button>
+                    <a
+                      href="https://dashboard.retellai.com/org_URqeX7dedVCNCf9UI/call-history?history=call_b12864a07ba0ba81d1b7905ea270"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <ExternalLink size={14} />
+                      <span>Open Retell Log</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Col: Verified Speech Transcript (5 cols) */}
+            <div className="lg:col-span-5 flex flex-col gap-5">
+              <div className="light-panel p-6 border-slate-200 bg-white flex flex-col h-[520px]">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare size={18} className="text-blue-600" />
+                    <h3 className="text-sm font-bold text-slate-900">Verified Call Transcript (100% Pass)</h3>
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-mono">1m 57s</span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs sm:text-sm">
+                  {[
+                    { speaker: "Agent", time: "0:00", text: "Hello, may I speak with Chandra Mohan? I am Priya calling from Home Credit." },
+                    { speaker: "Customer", time: "0:09", text: "Yes." },
+                    { speaker: "Agent", time: "0:11", text: "As a valued Home Credit customer, you have a pre-approved Loan Against Property offer of up to 75 Lakh rupees. I'd like to check a few quick details to see if it suits your needs. Could you tell me if your property is residential, commercial, or industrial?" },
+                    { speaker: "Customer", time: "0:25", text: "It is a residential flat." },
+                    { speaker: "Agent", time: "0:28", text: "Are you the sole owner of the property, or is it jointly owned?" },
+                    { speaker: "Customer", time: "0:33", text: "Sole owner." },
+                    { speaker: "Agent", time: "0:35", text: "Do you have the original property documents available for verification?" },
+                    { speaker: "Customer", time: "0:40", text: "Yes, original documents are available at home." },
+                    { speaker: "Agent", time: "0:44", text: "How much loan amount are you looking to borrow?" },
+                    { speaker: "Customer", time: "0:48", text: "Around 60 Lakhs." },
+                    { speaker: "Agent", time: "0:51", text: "Are you salaried or self-employed, and do you receive your income through bank transfer or in cash?" },
+                    { speaker: "Customer", time: "0:58", text: "Salaried, and received in bank account." },
+                    { speaker: "Agent", time: "1:02", text: "What is the approximate current market value of your property?" },
+                    { speaker: "Customer", time: "1:07", text: "Around 2 Crore." },
+                    { speaker: "Agent", time: "1:11", text: "Over how many years would you prefer to repay the loan?" },
+                    { speaker: "Customer", time: "1:15", text: "10 years." },
+                    { speaker: "Agent", time: "1:18", text: "Congratulations, Chandra Mohan! Based on the details provided, you meet all preliminary criteria for our Loan Against Property offer. A senior loan expert will call you shortly to discuss exact rates and finalize your application. Thank you for banking with Home Credit, and have a wonderful day!" }
+                  ].map((msg, i) => {
                     const isAgent = msg.speaker === "Agent";
                     return (
-                      <div 
-                        key={idx} 
-                        className={`flex flex-col max-w-[85%] ${isAgent ? 'self-start' : 'self-end'}`}
-                      >
-                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400 mb-1 px-1">
-                          {isAgent ? (
-                            <>
-                              <Bot size={12} className="text-rose-400" />
-                              <span>{config.agent_name} ({config.company_name})</span>
-                            </>
-                          ) : (
-                            <>
-                              <User size={12} className="text-indigo-400" />
-                              <span>{config.customer_name}</span>
-                            </>
-                          )}
+                      <div key={i} className={`flex flex-col ${isAgent ? 'items-start' : 'items-end'}`}>
+                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400 mb-1">
+                          <span>{isAgent ? "Priya (Home Credit)" : "Chandra Mohan"}</span>
                           <span>•</span>
-                          <span>{msg.timestamp}</span>
+                          <span>{msg.time}</span>
                         </div>
-
-                        <div className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed shadow-sm ${
+                        <div className={`p-3 rounded-2xl max-w-[90%] leading-relaxed ${
                           isAgent 
-                            ? 'bg-slate-800/90 text-slate-100 border border-white/10 rounded-tl-sm' 
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-sm'
+                            ? 'bg-slate-100 text-slate-800 rounded-tl-sm border border-slate-200/60' 
+                            : 'bg-blue-600 text-white rounded-tr-sm shadow-xs'
                         }`}>
                           {msg.text}
                         </div>
                       </div>
                     );
                   })}
-
-                  {/* Live Interim Speech Bubble (Draft sentence being spoken) */}
-                  {interimTranscript && (
-                    <div className="flex flex-col max-w-[85%] self-end opacity-85">
-                      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-blue-400 mb-1 px-1">
-                        <User size={12} />
-                        <span>Speaking now...</span>
-                      </div>
-                      <div className="p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed bg-blue-950/80 text-blue-200 border border-blue-500/40 rounded-tr-sm italic">
-                        "{interimTranscript}"
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-              <div ref={transcriptEndRef} />
-            </div>
-
-            {/* Call Action Controls */}
-            <div className="pt-3 border-t border-white/10 flex flex-col gap-2.5">
-              <div className="flex items-center gap-2">
-                {!callActive ? (
-                  <button
-                    onClick={handleStartCall}
-                    className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
-                  >
-                    <Phone size={18} /> Start Voice Call
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleEndCall}
-                    className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 transition-all cursor-pointer"
-                  >
-                    <PhoneOff size={18} /> End Call
-                  </button>
-                )}
-
-                <button
-                  onClick={toggleListening}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer ${
-                    isListening 
-                      ? 'bg-emerald-600 text-white border-emerald-400' 
-                      : 'bg-white/5 hover:bg-white/10 text-slate-200 border-white/10'
-                  }`}
-                  title={isListening ? "Microphone active. Listening for your speech" : "Click to activate microphone"}
-                >
-                  {isListening ? <Mic size={20} /> : <MicOff size={20} />}
-                </button>
-
-                {/* Force Submit Button for current speech buffer */}
-                {interimTranscript && (
-                  <button
-                    onClick={() => handleCustomerUtterance(interimTranscript)}
-                    className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 shadow-md"
-                    title="Finish speaking and submit response now"
-                  >
-                    <span>Done Speaking</span>
-                    <ArrowRight size={14} />
-                  </button>
-                )}
-
-                <button
-                  onClick={() => {
-                    handleEndCall();
-                    setState(INITIAL_STATE);
-                    setTranscript([]);
-                    setInterimTranscript("");
-                  }}
-                  className="p-3 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 transition-all cursor-pointer"
-                  title="Reset Conversation"
-                >
-                  <RotateCcw size={20} />
-                </button>
-              </div>
-
-              {/* Text Input Fallback */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={inputText}
-                  disabled={!callActive}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCustomerUtterance(inputText)}
-                  placeholder={callActive ? "Type full response or speak naturally into mic..." : "Start call to speak or type..."}
-                  className="flex-1 bg-slate-900/80 border border-white/10 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 disabled:opacity-40"
-                />
-
-                <button
-                  onClick={() => handleCustomerUtterance(inputText)}
-                  disabled={!callActive || !inputText.trim()}
-                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs sm:text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
-                >
-                  <span>Send</span>
-                  <ArrowRight size={14} />
-                </button>
-              </div>
-
-              {/* Quick Prompt Helper Pills */}
-              {callActive && (
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] text-slate-400">
-                  <span className="text-slate-500 font-semibold shrink-0">Quick reply:</span>
-                  {[
-                    "Residential flat",
-                    "Sole owner",
-                    "Original papers available at home",
-                    "50 Lakhs",
-                    "Salaried via bank account",
-                    "Worth 1.2 Crore",
-                    "10 years"
-                  ].map((phrase, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleCustomerUtterance(phrase)}
-                      className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/15 text-slate-300 border border-white/10 shrink-0 transition-colors cursor-pointer"
-                    >
-                      {phrase}
-                    </button>
-                  ))}
                 </div>
-              )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Right Column: Dynamic State Machine & 7-Item Underwriting (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col gap-5">
-          {/* 7 Checklist Parameters Visualizer */}
-          <div className="glass-panel rounded-2xl p-5 border border-white/10 shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck size={18} className="text-blue-400" />
-                <h2 className="text-sm font-bold text-white">Underwriting Slot Tracker (7 Items)</h2>
+        {/* TAB 2: LIVE VOICE STUDIO */}
+        {activeTab === 'studio' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Live Phone Console (7 cols) */}
+            <div className="lg:col-span-7 flex flex-col gap-5">
+              <div className="light-panel p-5 bg-white border-slate-200 flex flex-col shadow-sm">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-lg text-white shadow-md shadow-blue-500/20">
+                      P
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-slate-900">{config.agent_name} (Voice Agent)</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold border border-blue-200">
+                          Neural Audio
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
+                        <span>{config.company_name}</span>
+                        <span>•</span>
+                        <span>To: {config.customer_name}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                      state.handoff_ready ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                      state.disqualified ? 'bg-red-50 text-red-700 border border-red-200' :
+                      state.transfer_required ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                      callActive ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                      'bg-slate-100 text-slate-600'
+                    }`}>
+                      <span className={`w-2 h-2 rounded-full ${callActive ? 'bg-current animate-pulse' : 'bg-slate-400'}`}></span>
+                      {state.handoff_ready ? "QUALIFIED" :
+                       state.disqualified ? "DISQUALIFIED" :
+                       state.transfer_required ? "TRANSFER SPECIALIST" :
+                       callActive ? "CALL ACTIVE" : "STANDBY"}
+                    </span>
+                    {callActive && (
+                      <span className="text-xs font-mono text-slate-500">
+                        {formatTime(callDuration)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Animated Waveform */}
+                <div className="my-2 bg-slate-50 rounded-xl p-2 border border-slate-100 flex flex-col items-center justify-center min-h-[64px]">
+                  <WaveformVisualizer 
+                    isActive={callActive} 
+                    isSpeaking={isSpeaking} 
+                    isListening={isListening} 
+                  />
+                  <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2">
+                    {isSpeaking && <span className="text-blue-600 font-semibold">Priya Speaking...</span>}
+                    {isListening && !interimTranscript && <span className="text-emerald-600">Listening to Customer...</span>}
+                    {interimTranscript && <span className="text-blue-700">Detecting sentence: "{interimTranscript}..."</span>}
+                    {!isSpeaking && !isListening && callActive && <span>Connected • Speak into mic or type below</span>}
+                    {!callActive && <span>Agent Idle • Click Start Call to Begin</span>}
+                  </div>
+                </div>
+
+                {/* Transcript Scroll Area */}
+                <div className="h-64 overflow-y-auto pr-1 flex flex-col gap-3 my-2 scroll-smooth">
+                  {transcript.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 gap-2 py-8">
+                      <Phone size={28} className="text-slate-300" />
+                      <p className="text-xs font-medium text-slate-600">Click Start Call to speak or run a test scenario</p>
+                    </div>
+                  ) : (
+                    <>
+                      {transcript.map((msg, idx) => {
+                        const isAgent = msg.speaker === "Agent";
+                        return (
+                          <div key={idx} className={`flex flex-col max-w-[85%] ${isAgent ? 'self-start' : 'self-end'}`}>
+                            <div className="text-[10px] font-medium text-slate-400 mb-0.5">
+                              {isAgent ? "Priya (Home Credit)" : config.customer_name} • {msg.timestamp}
+                            </div>
+                            <div className={`p-3 rounded-2xl text-xs sm:text-sm leading-relaxed ${
+                              isAgent 
+                                ? 'bg-slate-100 text-slate-800 rounded-tl-sm border border-slate-200/70' 
+                                : 'bg-blue-600 text-white rounded-tr-sm shadow-xs'
+                            }`}>
+                              {msg.text}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {interimTranscript && (
+                        <div className="flex flex-col max-w-[85%] self-end opacity-85">
+                          <div className="text-[10px] font-semibold text-blue-600 mb-0.5">Speaking...</div>
+                          <div className="p-3 rounded-2xl text-xs sm:text-sm bg-blue-50 text-blue-900 border border-blue-200 italic">
+                            "{interimTranscript}"
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <div ref={transcriptEndRef} />
+                </div>
+
+                {/* Call Action Controls */}
+                <div className="pt-3 border-t border-slate-100 flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2">
+                    {!callActive ? (
+                      <button
+                        onClick={handleStartCall}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                      >
+                        <Phone size={16} /> Start Voice Call
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleEndCall}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                      >
+                        <PhoneOff size={16} /> End Call
+                      </button>
+                    )}
+
+                    <button
+                      onClick={toggleListening}
+                      className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
+                        isListening 
+                          ? 'bg-emerald-600 text-white border-emerald-600' 
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+                      }`}
+                      title={isListening ? "Listening... click to pause" : "Click to speak"}
+                    >
+                      {isListening ? <Mic size={18} /> : <MicOff size={18} />}
+                    </button>
+
+                    {interimTranscript && (
+                      <button
+                        onClick={() => handleCustomerUtterance(interimTranscript)}
+                        className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold cursor-pointer shadow-xs"
+                      >
+                        <span>Done Speaking</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        handleEndCall();
+                        setState(INITIAL_STATE);
+                        setTranscript([]);
+                        setInterimTranscript("");
+                      }}
+                      className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 transition-all cursor-pointer"
+                      title="Reset Conversation"
+                    >
+                      <RotateCcw size={18} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={inputText}
+                      disabled={!callActive}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleCustomerUtterance(inputText)}
+                      placeholder={callActive ? "Type response or speak naturally into mic..." : "Start call to speak or type..."}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                    />
+                    <button
+                      onClick={() => handleCustomerUtterance(inputText)}
+                      disabled={!callActive || !inputText.trim()}
+                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs sm:text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Send</span>
+                      <ArrowRight size={14} />
+                    </button>
+                  </div>
+                </div>
               </div>
-              <span className="text-[11px] text-slate-400">
-                Slot-filling Engine
+            </div>
+
+            {/* Right Col: Slot Tracker & Quick Scenarios (5 cols) */}
+            <div className="lg:col-span-5 flex flex-col gap-5">
+              <div className="light-panel p-5 bg-white border-slate-200">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={18} className="text-blue-600" />
+                    <h2 className="text-sm font-bold text-slate-900">7-Slot Underwriter Progress</h2>
+                  </div>
+                  <span className="text-[11px] text-slate-500">Live Memory State</span>
+                </div>
+
+                <div className="space-y-2">
+                  {CHECKLIST_ITEMS.map((item) => {
+                    let status = "pending";
+                    let displayVal = "Awaiting response";
+
+                    if (item.key === "property_type") {
+                      if (state.property_type === "Agricultural") {
+                        status = "failed";
+                        displayVal = "Agricultural Land (Disqualified)";
+                      } else if (state.property_type) {
+                        status = "passed";
+                        displayVal = state.property_type;
+                      }
+                    } else if (item.key === "ownership_status") {
+                      if (state.ownership_status) {
+                        status = "passed";
+                        displayVal = `${state.ownership_status} Ownership`;
+                      }
+                    } else if (item.key === "original_documents") {
+                      if (state.original_documents === "Unavailable") {
+                        status = "failed";
+                        displayVal = "Photocopies Only (Disqualified)";
+                      } else if (state.original_documents) {
+                        status = "passed";
+                        displayVal = "Originals Available";
+                      }
+                    } else if (item.key === "loan_amount") {
+                      if (state.loan_amount) {
+                        status = "passed";
+                        displayVal = `₹${(state.loan_amount / 100000).toFixed(1)} Lakhs (Approved Cap)`;
+                      } else if (state.loan_amount_pending_cap_consent) {
+                        status = "active";
+                        displayVal = "Pending 75L Cap Consent";
+                      }
+                    } else if (item.key === "occupation_income") {
+                      if (state.income_mode === "Cash") {
+                        status = "failed";
+                        displayVal = "Cash Income (Disqualified)";
+                      } else if (state.occupation && state.income_mode) {
+                        status = "passed";
+                        displayVal = `${state.occupation} via Bank`;
+                      } else if (state.occupation) {
+                        status = "active";
+                        displayVal = `${state.occupation} (Mode Pending)`;
+                      }
+                    } else if (item.key === "market_value") {
+                      if (state.market_value) {
+                        status = "passed";
+                        displayVal = `₹${state.market_value}`;
+                      }
+                    } else if (item.key === "tenure") {
+                      if (state.tenure && (state.tenure < 3 || state.tenure > 15)) {
+                        status = "failed";
+                        displayVal = `${state.tenure} Years (Out of 3-15 Range)`;
+                      } else if (state.tenure) {
+                        status = "passed";
+                        displayVal = `${state.tenure} Years Repayment`;
+                      }
+                    }
+
+                    const isCurrentQuestion = getEarliestMissingItem(state) === item.id && callActive;
+
+                    return (
+                      <div 
+                        key={item.id}
+                        className={`p-2.5 rounded-xl border transition-all flex items-center justify-between ${
+                          status === "passed" ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900' :
+                          status === "failed" ? 'bg-red-50/60 border-red-200 text-red-900' :
+                          isCurrentQuestion ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-xs' :
+                          'bg-slate-50 border-slate-100 text-slate-700'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-xs text-slate-900">
+                              {item.id}. {item.label}
+                            </span>
+                            {isCurrentQuestion && (
+                              <span className="px-1.5 py-0.2 bg-blue-600 text-white rounded text-[9px] font-bold">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">{displayVal}</p>
+                        </div>
+
+                        <div>
+                          {status === "passed" && <CheckCircle2 size={16} className="text-emerald-600" />}
+                          {status === "failed" && <XCircle size={16} className="text-red-600" />}
+                          {status === "pending" && <div className="w-3.5 h-3.5 rounded-full border border-slate-300"></div>}
+                          {status === "active" && <RefreshCw size={14} className="text-blue-600 animate-spin" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: 7-SLOT UNDERWRITER COMPLETE MATRIX */}
+        {activeTab === 'matrix' && (
+          <div className="light-panel p-6 bg-white border-slate-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">7-Point Qualification Checklist & Business Rules</h2>
+                <p className="text-xs text-slate-500">Autonomous Sequential Underwriting Rules specified by Home Credit</p>
+              </div>
+              <span className="text-xs font-semibold px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+                Specification Compliance
               </span>
             </div>
 
-            <div className="space-y-2.5">
-              {CHECKLIST_ITEMS.map((item) => {
-                let status = "pending"; // 'passed' | 'failed' | 'pending' | 'active'
-                let displayVal = "Awaiting response";
-
-                if (item.key === "property_type") {
-                  if (state.property_type === "Agricultural") {
-                    status = "failed";
-                    displayVal = "Agricultural Land (Disqualified)";
-                  } else if (state.property_type) {
-                    status = "passed";
-                    displayVal = state.property_type;
-                  }
-                } else if (item.key === "ownership_status") {
-                  if (state.ownership_status) {
-                    status = "passed";
-                    displayVal = `${state.ownership_status} Ownership`;
-                  }
-                } else if (item.key === "original_documents") {
-                  if (state.original_documents === "Unavailable") {
-                    status = "failed";
-                    displayVal = "Photocopies Only (Disqualified)";
-                  } else if (state.original_documents) {
-                    status = "passed";
-                    displayVal = "Originals Available";
-                  }
-                } else if (item.key === "loan_amount") {
-                  if (state.loan_amount) {
-                    status = "passed";
-                    displayVal = `₹${(state.loan_amount / 100000).toFixed(1)} Lakhs (Approved Cap)`;
-                  } else if (state.loan_amount_pending_cap_consent) {
-                    status = "active";
-                    displayVal = "Pending 75L Cap Consent";
-                  }
-                } else if (item.key === "occupation_income") {
-                  if (state.income_mode === "Cash") {
-                    status = "failed";
-                    displayVal = "Cash Income (Disqualified)";
-                  } else if (state.occupation && state.income_mode) {
-                    status = "passed";
-                    displayVal = `${state.occupation} via Bank`;
-                  } else if (state.occupation) {
-                    status = "active";
-                    displayVal = `${state.occupation} (Mode Pending)`;
-                  }
-                } else if (item.key === "market_value") {
-                  if (state.market_value) {
-                    status = "passed";
-                    displayVal = `₹${state.market_value}`;
-                  }
-                } else if (item.key === "tenure") {
-                  if (state.tenure && (state.tenure < 3 || state.tenure > 15)) {
-                    status = "failed";
-                    displayVal = `${state.tenure} Years (Out of 3-15 Range)`;
-                  } else if (state.tenure) {
-                    status = "passed";
-                    displayVal = `${state.tenure} Years Repayment`;
-                  }
-                }
-
-                const isCurrentQuestion = getEarliestMissingItem(state) === item.id && callActive;
-
-                return (
-                  <div 
-                    key={item.id}
-                    className={`p-3 rounded-xl border transition-all flex items-center justify-between ${
-                      status === "passed" ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200' :
-                      status === "failed" ? 'bg-red-950/20 border-red-500/30 text-red-200' :
-                      isCurrentQuestion ? 'bg-blue-900/20 border-blue-500/40 text-blue-200 shadow-sm' :
-                      'bg-slate-900/50 border-white/5 text-slate-300'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs text-white">
-                          {item.id}. {item.label}
-                        </span>
-                        {isCurrentQuestion && (
-                          <span className="px-1.5 py-0.2 bg-blue-500 text-white rounded text-[9px] font-bold">
-                            Current Question
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5">{displayVal}</p>
-                    </div>
-
-                    <div>
-                      {status === "passed" && <CheckCircle2 size={18} className="text-emerald-400" />}
-                      {status === "failed" && <XCircle size={18} className="text-red-400" />}
-                      {status === "pending" && <div className="w-4 h-4 rounded-full border border-slate-600"></div>}
-                      {status === "active" && <RefreshCw size={16} className="text-blue-400 animate-spin" />}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Business Decision Logic State */}
-            <div className="mt-4 pt-3 border-t border-white/10 text-xs space-y-1.5">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Transfer Switch (Existing Loan):</span>
-                <span className={state.transfer_required ? 'text-amber-400 font-bold' : 'text-slate-400'}>
-                  {state.transfer_required ? 'Triggered (Specialist Route)' : 'Inactive'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Disqualification Gate:</span>
-                <span className={state.disqualified ? 'text-red-400 font-bold' : 'text-slate-400'}>
-                  {state.disqualified ? `FAIL (${state.disqualification_reason})` : 'PASSED'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Senior Loan Expert Handoff:</span>
-                <span className={state.handoff_ready ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
-                  {state.handoff_ready ? 'APPROVED & READY' : 'Pending 7 Checklist Items'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Scenario Runner Drawer */}
-          <div className="glass-panel rounded-2xl p-5 border border-white/10 shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
-              <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-indigo-400" />
-                <h3 className="text-sm font-bold text-white">Scenario Lab (1-Click Run)</h3>
-              </div>
-              <span className="text-[11px] text-slate-400">10 Edge Cases</span>
-            </div>
-
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {TEST_SCENARIOS.slice(0, 5).map((sc) => (
-                <div
-                  key={sc.id}
-                  onClick={() => handleRunScenario(sc)}
-                  className={`p-2.5 rounded-xl border border-white/5 bg-slate-900/60 hover:bg-slate-800/80 transition-all cursor-pointer flex items-center justify-between ${
-                    activeScenarioId === sc.id ? 'border-blue-500 bg-blue-900/20' : ''
-                  }`}
-                >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { num: 1, title: "Property Type", pass: "Residential, Commercial, Industrial", fail: "Agricultural / Farmland", status: "Immediate Disqualification on Farmland" },
+                { num: 2, title: "Ownership Status", pass: "Sole or Joint Ownership", fail: "None", status: "Both Sole & Joint Accepted" },
+                { num: 3, title: "Document Availability", pass: "Original property papers available", fail: "Photocopies only / Misplaced", status: "Mandatory Original Verification" },
+                { num: 4, title: "Desired Loan Amount", pass: "Up to ₹75,00,000 (75 Lakhs)", fail: "> 75 Lakhs (Refused cap)", status: "Offers 75L cap before disqualification" },
+                { num: 5, title: "Occupation & Mode", pass: "Salaried/Self-Employed with Bank payout", fail: "Cash Income", status: "Cash Income Strictly Disqualified" },
+                { num: 6, title: "Market Value", pass: "Customer Estimated Value", fail: "No minimum cutoff specified", status: "Captured without arbitrary threshold" },
+                { num: 7, title: "Repayment Tenure", pass: "3 to 15 Years (Inclusive)", fail: "< 3 years or > 15 years", status: "Strict 3-15 Year Tenure Window" }
+              ].map((c) => (
+                <div key={c.num} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-blue-400">{sc.id}</span>
-                      <span className="text-xs font-semibold text-white">{sc.title}</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-blue-600">CHECKLIST #{c.num}</span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                        Rule
+                      </span>
                     </div>
-                    <p className="text-[10px] text-slate-400 truncate max-w-[240px] mt-0.5">{sc.expected}</p>
+                    <h3 className="text-sm font-bold text-slate-900 mb-2">{c.title}</h3>
+                    <div className="text-xs space-y-1.5 text-slate-600">
+                      <div><strong className="text-emerald-700">Eligible:</strong> {c.pass}</div>
+                      <div><strong className="text-rose-700">Disqualify:</strong> {c.fail}</div>
+                    </div>
                   </div>
-                  <Play size={14} className="text-slate-400 hover:text-white" />
+                  <p className="mt-3 pt-2 border-t border-slate-200 text-[11px] text-slate-500 font-medium">
+                    {c.status}
+                  </p>
                 </div>
               ))}
             </div>
-
-            <button
-              onClick={() => setActiveTab('scenarios')}
-              className="mt-3 text-xs text-center text-blue-400 hover:text-blue-300 font-semibold cursor-pointer"
-            >
-              View all 10 scenarios in Scenario Lab →
-            </button>
           </div>
-        </div>
-      </main>
+        )}
 
-      {/* Scenarios Full Modal / Tab */}
-      {activeTab === 'scenarios' && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles size={20} className="text-indigo-400" />
-                <h3 className="text-base font-bold text-white">10 Pre-Configured Test Scenarios</h3>
+        {/* TAB 4: SCENARIOS LAB */}
+        {activeTab === 'scenarios' && (
+          <div className="light-panel p-6 bg-white border-slate-200">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Automated Edge-Case Scenario Lab</h2>
+                <p className="text-xs text-slate-500">Run complete automated test calls to verify every logic branch</p>
               </div>
-              <button 
-                onClick={() => setActiveTab('studio')}
-                className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-slate-200 cursor-pointer"
-              >
-                Close
-              </button>
+              <span className="text-xs font-semibold px-3 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-200">
+                10 Test Suites Ready
+              </span>
             </div>
 
-            <div className="p-4 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {TEST_SCENARIOS.map((sc) => (
                 <div
                   key={sc.id}
                   onClick={() => handleRunScenario(sc)}
-                  className="p-3.5 rounded-xl border border-white/10 bg-slate-950/60 hover:border-blue-500/50 hover:bg-slate-800/50 transition-all cursor-pointer flex flex-col justify-between gap-2"
+                  className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50/50 hover:border-blue-300 transition-all cursor-pointer flex flex-col justify-between gap-3 shadow-2xs"
                 >
                   <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-bold text-blue-400">{sc.id}</span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-bold text-blue-600">{sc.id}</span>
                       <span 
                         className="text-[10px] font-bold px-2 py-0.5 rounded-full"
-                        style={{ backgroundColor: `${sc.badgeColor}20`, color: sc.badgeColor }}
+                        style={{ backgroundColor: `${sc.badgeColor}15`, color: sc.badgeColor }}
                       >
                         {sc.badge}
                       </span>
                     </div>
-                    <h4 className="text-sm font-semibold text-white">{sc.title}</h4>
-                    <p className="text-xs text-slate-400 mt-1">{sc.description}</p>
+                    <h4 className="text-sm font-bold text-slate-900">{sc.title}</h4>
+                    <p className="text-xs text-slate-600 mt-1">{sc.description}</p>
                   </div>
 
-                  <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-mono text-[11px]">{sc.utterances.length} conversation turns</span>
-                    <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                      Run Test <Play size={12} />
+                  <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-mono text-[11px]">{sc.utterances.length} turns</span>
+                    <span className="text-blue-600 font-bold flex items-center gap-1 hover:underline">
+                      Simulate Test <Play size={12} />
                     </span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* System Prompt View Modal */}
-      {activeTab === 'prompt' && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-white/10 rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="p-4 border-b border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <FileText size={20} className="text-blue-400" />
-                <h3 className="text-base font-bold text-white">Production System Prompt Specification</h3>
+        {/* TAB 5: SYSTEM PROMPT SPECIFICATION */}
+        {activeTab === 'prompt' && (
+          <div className="light-panel p-6 bg-white border-slate-200 flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Production System Prompt Specification</h2>
+                <p className="text-xs text-slate-500">Adheres to Section 4 & 5 variables and prompt engineering rules</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={copySystemPrompt}
-                  className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-semibold text-white flex items-center gap-1.5 cursor-pointer"
-                >
-                  {copiedPrompt ? <Check size={14} /> : <Copy size={14} />}
-                  {copiedPrompt ? "Copied" : "Copy Prompt"}
-                </button>
-                <button 
-                  onClick={() => setActiveTab('studio')}
-                  className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-slate-200 cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4 overflow-y-auto font-mono text-xs text-slate-300 bg-slate-950/80 whitespace-pre-wrap leading-relaxed">
-{`# 1. AGENT IDENTITY, CONTEXT & TECHNICAL VARIABLES
-- You are {{agent_name}}, an intelligent AI Voice Agent representing {{company_name}}.
-- Agent Gender: {{agent_gender}} (Strict adherence required in tone and grammar).
+              <button
+                onClick={() => {
+                  const p = `# 1. AGENT IDENTITY, CONTEXT & TECHNICAL VARIABLES
+- You are Priya, an intelligent AI Voice Agent representing Home Credit.
+- Agent Gender: Female.
 - Customer Name: {{customer_name}}.
-- Date & Context: Today is {{current_day}}, {{current_date}}, and current time is {{current_time}}.
-- Language: Conduct the entire call strictly in {{language_to_speak}}.
-- Dynamic Inputs: {{customer_utterance}}, {{conversation_history}}, {{additional_context_from_rag}}.
+- Language: English.
 
 # 2. CALL OBJECTIVE & HIGH-LEVEL FLOW
 1. Verify Customer Identity.
 2. Check for Busy Status & Capture Callback.
 3. Present the Pre-Approved Loyalty Offer (up to ₹75 Lakhs).
 4. Detect Existing Loan / EMI Reduction Transfer Intent.
+5. Dynamically Qualify the 7 Eligibility Checklist Items.
+6. Immediate Disqualification OR Final Senior Loan Expert Handoff.`;
+                  navigator.clipboard.writeText(p);
+                  setCopiedPrompt(true);
+                  setTimeout(() => setCopiedPrompt(false), 2000);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                {copiedPrompt ? <Check size={14} /> : <Copy size={14} />}
+                <span>{copiedPrompt ? "Copied" : "Copy Prompt Text"}</span>
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-900 text-slate-100 rounded-xl font-mono text-xs overflow-y-auto max-h-[500px] leading-relaxed whitespace-pre-wrap">
+{`# 1. AGENT IDENTITY, CONTEXT & TECHNICAL VARIABLES
+- You are {{agent_name}}, an intelligent AI Voice Agent representing {{company_name}}.
+- Agent Gender: {{agent_gender}} (Strict requirement: maintain this gender identity consistently).
+- Customer Name: {{customer_name}}.
+- Current Context: Today is {{current_day}}, {{current_date}}, time is {{current_time}}.
+- Language: Conduct the entire call strictly in {{language_to_speak}}.
+- Dynamic Inputs: {{customer_utterance}}, {{conversation_history}}, {{additional_context_from_rag}}.
+
+# 2. CALL OBJECTIVE & HIGH-LEVEL FLOW
+1. Verify Customer Identity.
+2. Check for Busy Status & Capture Callback.
+3. Present the Pre-Approved Loyalty Offer.
+4. Detect Existing Loan / Balance Transfer / EMI Reduction Intent.
 5. Dynamically Qualify the 7 Eligibility Checklist Items.
 6. Immediate Disqualification OR Final Senior Loan Expert Handoff.
 
@@ -1055,8 +1114,9 @@ export default function App() {
 - Handoff Gate: Hand off only after all 7 items pass.`}
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+      </main>
     </div>
   );
 }
