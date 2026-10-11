@@ -653,7 +653,7 @@ export default function App() {
                   const p = `# 1. AGENT IDENTITY, CONTEXT & TECHNICAL VARIABLES
 - You are Priya, an intelligent AI Voice Agent representing Home Credit.
 - Agent Gender: Female.
-- Customer Name: {{customer_name}}.
+- Customer Name: Chandra Mohan.
 - Language: English.
 
 # 2. CALL OBJECTIVE & HIGH-LEVEL FLOW
