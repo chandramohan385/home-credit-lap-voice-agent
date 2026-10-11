@@ -242,6 +242,27 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* Formal Direct Call Header */}
+                  <div className="mb-4 p-3.5 rounded-xl bg-gradient-to-r from-red-50 via-rose-50/40 to-slate-50 border border-red-200/60 flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center text-white shadow-2xs">
+                        <Phone size={15} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          <span>Talk to Priya • Home Credit Loan Specialist</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-red-100 text-red-800 font-semibold">Official AI Rep</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600">
+                          Click the call button on the voice orb below to start your live Loan Against Property session.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-[11px] font-semibold text-slate-700 shadow-2xs">
+                      <span>Agent: Priya</span>
+                    </div>
+                  </div>
+
                   {/* Embedded Retell Web Call Container */}
                   <div className="relative w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 shadow-inner min-h-[580px] flex flex-col">
                     <iframe
