@@ -1,6 +1,15 @@
 # AI Voice Agent Engineering - Home Credit LAP Qualification
 **Candidate Submission Report**
 
+> **Candidate**: Avuram Chandra Mohan Reddy (`chandramohan385`)  
+> **Position**: SalesAgents AI - AI Intern (Prompt Engineer)
+
+### 🔗 Official Submission Deliverables
+* **🌐 Live Production Web Application**: [home-credit-lap-voice-agent-black.vercel.app](https://home-credit-lap-voice-agent-black.vercel.app/)
+* **🎙️ Live Voice Agent Call (Retell AI WebRTC Orb)**: [agent.retellai.com/orb/agent_b6aa2c1cad76fd15ff8f321e3c](https://agent.retellai.com/orb/agent_b6aa2c1cad76fd15ff8f321e3c?token=94f6800d5a37ccae9e8db30f9e58c405)
+* **📊 Retell Call Recording & Telemetry Log (898ms Latency • 100% Pass)**: [Retell Dashboard Call History](https://dashboard.retellai.com/org_URqeX7dedVCNCf9UI/call-history?history=call_b12864a07ba0ba81d1b7905ea270)
+* **💻 GitHub Repository**: [github.com/chandramohan385/home-credit-lap-voice-agent](https://github.com/chandramohan385/home-credit-lap-voice-agent)
+
 ---
 
 ## 1. Executive Summary
