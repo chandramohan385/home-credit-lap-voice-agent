@@ -205,7 +205,13 @@ export default function App() {
 
     setTimeout(() => {
       playConnectedChime();
-      const opening = `Hello, may I speak with ${config.customer_name}? I am ${config.agent_name} calling from ${config.company_name}.`;
+      const cust = config.customer_name && !config.customer_name.includes('{') ? config.customer_name : "Chandra Mohan";
+      const agent = config.agent_name && !config.agent_name.includes('{') ? config.agent_name : "Priya";
+      const comp = config.company_name && !config.company_name.includes('{') ? config.company_name : "Home Credit";
+
+      const opening = config.language_to_speak === "Hindi"
+        ? `Namaste! Main ${comp} se ${agent} bol rahi hoon. Kya meri baat ${cust} ji se ho rahi hai?`
+        : `Hello! This is ${agent} calling from ${comp}. Am I speaking with ${cust}?`;
 
       const initialMsg = {
         speaker: "Agent",
@@ -318,7 +324,14 @@ export default function App() {
     await new Promise(r => setTimeout(r, 1200));
     playConnectedChime();
 
-    const opening = `Hello, may I speak with ${config.customer_name}? I am ${config.agent_name} calling from ${config.company_name}.`;
+    const cust = config.customer_name && !config.customer_name.includes('{') ? config.customer_name : "Chandra Mohan";
+    const agent = config.agent_name && !config.agent_name.includes('{') ? config.agent_name : "Priya";
+    const comp = config.company_name && !config.company_name.includes('{') ? config.company_name : "Home Credit";
+
+    const opening = config.language_to_speak === "Hindi"
+      ? `Namaste! Main ${comp} se ${agent} bol rahi hoon. Kya meri baat ${cust} ji se ho rahi hai?`
+      : `Hello! This is ${agent} calling from ${comp}. Am I speaking with ${cust}?`;
+
     const initialTranscript = [{
       speaker: "Agent",
       text: opening,

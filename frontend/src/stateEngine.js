@@ -93,7 +93,7 @@ export function processTurn(currentState, utterance, config) {
     if (["yes", "speaking", "this is", "myself", "haan", "bol raha hoon", "bol rahi hoon", "sahi hai"].some(p => text.includes(p))) {
       state.customer_verified = true;
       state.current_phase = "OFFER";
-    } else if (["wrong number", "not rahul", "no", "nahi hoon", "galat number"].some(p => text.includes(p))) {
+    } else if (["wrong number", "not me", "no", "nahi hoon", "galat number", "not " + (config.customer_name || "").toLowerCase()].some(p => text.includes(p))) {
       state.customer_verified = false;
       state.call_ended = true;
       state.current_phase = "ENDED";

@@ -27,12 +27,16 @@ class VoiceAgent:
         self.engine = StateEngine(customer_name=customer_name, company_name=company_name)
 
     def generate_opening_message(self) -> str:
+        cust = self.customer_name if (self.customer_name and not self.customer_name.startswith("{")) else "Chandra Mohan"
+        agent = self.agent_name if (self.agent_name and not self.agent_name.startswith("{")) else "Priya"
+        comp = self.company_name if (self.company_name and not self.company_name.startswith("{")) else "Home Credit"
+
         if self.language_to_speak.lower() == "hindi":
             if self.agent_gender.lower() == "female":
-                return f"Namaste! Kya meri baat {self.customer_name} ji se ho rahi hai? Main {self.company_name} se {self.agent_name} bol rahi hoon."
+                return f"Namaste! Main {comp} se {agent} bol rahi hoon. Kya meri baat {cust} ji se ho rahi hai?"
             else:
-                return f"Namaste! Kya meri baat {self.customer_name} ji se ho rahi hai? Main {self.company_name} se {self.agent_name} bol raha hoon."
-        return f"Hello, may I speak with {self.customer_name}? I am {self.agent_name} calling from {self.company_name}."
+                return f"Namaste! Main {comp} se {agent} bol raha hoon. Kya meri baat {cust} ji se ho rahi hai?"
+        return f"Hello! This is {agent} calling from {comp}. Am I speaking with {cust}?"
 
     def process_utterance(self, utterance: str) -> Dict[str, Any]:
         """Processes customer utterance, updates state machine, and returns audio-optimized text response."""
