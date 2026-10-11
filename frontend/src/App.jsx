@@ -43,6 +43,7 @@ export default function App() {
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedOrbLink, setCopiedOrbLink] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Verified Call Audio Playback State
   const [isPlayingVerifiedAudio, setIsPlayingVerifiedAudio] = useState(false);
@@ -532,6 +533,14 @@ export default function App() {
             >
               <Radio size={14} className="animate-pulse text-sky-200" />
               <span>Talk to Agent (Retell AI)</span>
+            </button>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              title="Configure Dynamic Variables (Customer, Agent, Language)"
+            >
+              <Sliders size={14} className="text-slate-500" />
+              <span>Variables</span>
             </button>
             <a
               href={RETELL_CALL_HISTORY_URL}
@@ -1422,6 +1431,147 @@ export default function App() {
         )}
 
       </main>
+
+      {/* Dynamic Variables & Persona Modal */}
+      {isSettingsOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 flex flex-col gap-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <Sliders size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Dynamic Call Variables</h3>
+                  <p className="text-xs text-slate-500">Configure customer, agent persona, gender, and language</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSettingsOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg text-lg font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 1-Click Persona Presets */}
+            <div>
+              <label className="text-xs font-bold text-slate-700 block mb-2">1-Click Presets</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => setConfig({
+                    ...config,
+                    customer_name: "Chandra Mohan",
+                    agent_name: "Priya",
+                    agent_gender: "Female",
+                    language_to_speak: "English"
+                  })}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    config.customer_name === "Chandra Mohan" ? "border-blue-500 bg-blue-50/70" : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                  }`}
+                >
+                  <div className="text-xs font-bold text-slate-900">Chandra Mohan</div>
+                  <div className="text-[10px] text-slate-500">Priya (Female, En)</div>
+                </button>
+
+                <button
+                  onClick={() => setConfig({
+                    ...config,
+                    customer_name: "Rahul Sharma",
+                    agent_name: "Neha",
+                    agent_gender: "Female",
+                    language_to_speak: "English"
+                  })}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    config.customer_name === "Rahul Sharma" ? "border-blue-500 bg-blue-50/70" : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                  }`}
+                >
+                  <div className="text-xs font-bold text-slate-900">Rahul Sharma</div>
+                  <div className="text-[10px] text-slate-500">Neha (Female, En)</div>
+                </button>
+
+                <button
+                  onClick={() => setConfig({
+                    ...config,
+                    customer_name: "Vikram Patel",
+                    agent_name: "Aarav",
+                    agent_gender: "Male",
+                    language_to_speak: "Hindi"
+                  })}
+                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    config.customer_name === "Vikram Patel" ? "border-blue-500 bg-blue-50/70" : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                  }`}
+                >
+                  <div className="text-xs font-bold text-slate-900">Vikram Patel</div>
+                  <div className="text-[10px] text-slate-500">Aarav (Male, Hi)</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Form Fields */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Customer Name</label>
+                <input
+                  type="text"
+                  value={config.customer_name}
+                  onChange={(e) => setConfig({ ...config, customer_name: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
+                  placeholder="e.g. Rahul Sharma"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Agent Name</label>
+                <input
+                  type="text"
+                  value={config.agent_name}
+                  onChange={(e) => setConfig({ ...config, agent_name: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
+                  placeholder="e.g. Priya"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Agent Gender</label>
+                <select
+                  value={config.agent_gender}
+                  onChange={(e) => setConfig({ ...config, agent_gender: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="Female">Female (e.g. Priya, Neha)</option>
+                  <option value="Male">Male (e.g. Aarav, Rohan)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Language</label>
+                <select
+                  value={config.language_to_speak}
+                  onChange={(e) => setConfig({ ...config, language_to_speak: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
+                >
+                  <option value="English">English</option>
+                  <option value="Hindi">Hindi</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3 text-[11px] text-blue-950 leading-relaxed">
+              <strong>💡 Production Dynamic Injection:</strong> When dialing via CRM, these variables are passed in the Retell API call payload (<code>retell_llm_dynamic_variables</code>). In the local studio, the voice engine adapts gender grammar and greetings in real time!
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setIsSettingsOpen(false)}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all cursor-pointer shadow-xs"
+              >
+                Save & Apply Variables
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
