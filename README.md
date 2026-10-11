@@ -18,7 +18,9 @@
 ## 🌟 Key Highlights & Capabilities
 
 * **Integrated Live Retell AI Web Call (898ms Latency)**: Embedded directly into the web application, allowing evaluators to speak directly to Priya over WebRTC with telecom-grade audio, Cartesia neural voice synthesis, and Deepgram Nova-2 voice activity detection.
-* **Modern SaaS Light Theme UI**: Beautiful, accessible, light-themed responsive dashboard built with React 19, Vite, and Tailwind CSS.
+* **Modern SaaS Light Theme UI & Roboto Typography**: Clean, accessible, light-themed responsive dashboard built with React 19, Vite, Tailwind CSS, and Google's Roboto & Roboto Mono typography with negative letter-spacing for high-end SaaS readability.
+* **Dynamic Variables & 1-Click Persona Presets**: Interactive modal allowing seamless testing with different customer names (Chandra Mohan, Rahul Sharma, Vikram Patel), agent personas (Priya, Neha, Aarav), and language settings.
+* **Zero-Placeholder Speech Guardrails**: Strict prompt engineering and fallback defaults preventing TTS models from ever verbalizing raw template brackets (`{{...}}`), ensuring natural human speech in both English and Hindi.
 * **Dynamic Slot-Filling Memory**: Extracts compound utterances out-of-order without re-asking answered questions (implements the *First Missing Question* algorithm).
 * **Immediate Disqualification Gates**: Halts calls instantly upon detecting ineligible criteria (Agricultural land, Cash income, Missing original documents, Tenure outside 3–15 years).
 * **Dedicated Transfer Switch**: Recognizes existing-loan balance transfers or EMI-reduction requests and routes them to human loan-transfer specialists.
