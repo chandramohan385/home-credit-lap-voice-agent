@@ -18,7 +18,7 @@ const RETELL_CALL_HISTORY_URL = "https://dashboard.retellai.com/org_URqeX7dedVCN
 export default function App() {
   // Navigation / View Tabs
   const [activeTab, setActiveTab] = useState('studio'); // 'studio' | 'evidence' | 'matrix' | 'scenarios' | 'prompt'
-  const [studioMode, setStudioMode] = useState('retell'); // 'retell' | 'simulator'
+  const [studioMode, setStudioMode] = useState('simulator'); // 'simulator' | 'retell'
 
   // Agent Configuration
   const [config, setConfig] = useState({
@@ -709,26 +709,26 @@ export default function App() {
 
               <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
                 <button
-                  onClick={() => setStudioMode('retell')}
+                  onClick={() => setStudioMode('simulator')}
                   className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    studioMode === 'simulator'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Phone size={14} className={studioMode === 'simulator' ? 'text-white' : 'text-slate-500'} />
+                  <span>Interactive Voice Engine</span>
+                </button>
+                <button
+                  onClick={() => setStudioMode('retell')}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     studioMode === 'retell'
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <Radio size={14} className={studioMode === 'retell' ? 'animate-pulse' : ''} />
-                  <span>Retell AI Web Call (Live WebRTC)</span>
-                </button>
-                <button
-                  onClick={() => setStudioMode('simulator')}
-                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    studioMode === 'simulator'
-                      ? 'bg-white text-slate-900 shadow-xs border border-slate-200'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Layers size={14} />
-                  <span>Local Rule Sandbox</span>
+                  <Radio size={14} className={studioMode === 'retell' ? 'animate-pulse text-sky-200' : 'text-slate-500'} />
+                  <span>Retell AI Cloud Orb</span>
                 </button>
               </div>
             </div>
@@ -739,6 +739,21 @@ export default function App() {
                 {/* Embedded Retell Web Call Container (7 cols) */}
                 <div className="lg:col-span-7 flex flex-col gap-4">
                   <div className="light-panel p-5 bg-white border-slate-200 flex flex-col shadow-sm">
+                    {/* Retell Cloud Greeting Notice */}
+                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-950">
+                      <Sparkles size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="font-bold text-amber-900 mb-0.5">Retell Cloud Orb Sync Tip:</div>
+                        <span>The embedded orb connects to Retell's cloud server. To make Retell greet with your name instead of placeholders, update <em>Welcome Message &gt; Custom message</em> in your open Retell tab to:</span>
+                        <div className="mt-1 font-mono text-[11px] bg-white border border-amber-300/80 px-2.5 py-1 rounded-md text-amber-950 font-semibold select-all">
+                          Hello! This is Priya calling from Home Credit. Am I speaking with Chandra Mohan?
+                        </div>
+                        <div className="mt-1 text-[10px] text-amber-700">
+                          Then click <strong>Publish</strong> in Retell AI. (Or switch to <strong>Interactive Voice Engine</strong> above to test dynamic customer names with zero setup!)
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-4">
                       <div className="flex items-center gap-3">
                         <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-lg text-white shadow-md shadow-blue-500/20">
@@ -752,7 +767,7 @@ export default function App() {
                               898ms Latency
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 mt-0.5">Retell AI WebRTC • Cartesia / ElevenLabs Voice • Deepgram Nova-2</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Retell AI WebRTC • Cartesia Neural Voice • Deepgram Nova-2</p>
                         </div>
                       </div>
 
