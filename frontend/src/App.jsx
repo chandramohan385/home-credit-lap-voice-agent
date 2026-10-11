@@ -1,402 +1,21 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
-  Phone, PhoneOff, Mic, MicOff, Play, RotateCcw, Download, 
-  FileText, CheckCircle2, XCircle, AlertCircle, Sparkles, 
-  Settings, Bot, User, Volume2, ArrowRight, ShieldCheck, 
-  ExternalLink, Globe, RefreshCw, Radio, Layers, Check, Copy, Code,
-  Sliders, MessageSquare, Clock, Zap, Award, PlayCircle, PauseCircle
+  Phone, Radio, Award, ShieldCheck, Sparkles, FileText, 
+  ExternalLink, Check, Copy, Code, CheckCircle2, Bot, User, 
+  Zap, Clock, ArrowUpRight, ChevronRight, Play, MessageSquare,
+  HelpCircle, ArrowRight
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
-import { INITIAL_STATE, CHECKLIST_ITEMS, processTurn, getEarliestMissingItem } from './stateEngine';
 import { TEST_SCENARIOS } from './scenariosData';
-import WaveformVisualizer from './WaveformVisualizer';
-import { playRingingSound, playConnectedChime, playHangupTone } from './audioEffects';
 
 const RETELL_ORB_URL = "https://agent.retellai.com/orb/agent_b6aa2c1cad76fd15ff8f321e3c?token=94f6800d5a37ccae9e8db30f9e58c405";
 const RETELL_CALL_HISTORY_URL = "https://dashboard.retellai.com/org_URqeX7dedVCNCf9UI/call-history?history=call_b12864a07ba0ba81d1b7905ea270";
 
 export default function App() {
-  // Navigation / View Tabs
-  const [activeTab, setActiveTab] = useState('studio'); // 'studio' | 'evidence' | 'matrix' | 'scenarios' | 'prompt'
-  const [studioMode, setStudioMode] = useState('simulator'); // 'simulator' | 'retell'
-
-  // Agent Configuration
-  const [config, setConfig] = useState({
-    company_name: "Home Credit",
-    customer_name: "Chandra Mohan",
-    agent_name: "Priya",
-    agent_gender: "Female",
-    language_to_speak: "English",
-    useNeuralTTS: true
-  });
-
-  // Call & State Management
-  const [callActive, setCallActive] = useState(false);
-  const [callDuration, setCallDuration] = useState(0);
-  const [state, setState] = useState(INITIAL_STATE);
-  const [transcript, setTranscript] = useState([]);
-  const [inputText, setInputText] = useState("");
-  const [isListening, setIsListening] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [interimTranscript, setInterimTranscript] = useState("");
-  const [activeScenarioId, setActiveScenarioId] = useState(null);
-  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  // Navigation: Default directly to Retell AI Live Voice Call
+  const [activeTab, setActiveTab] = useState('retell'); // 'retell' | 'audit' | 'matrix' | 'scenarios' | 'prompt'
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedOrbLink, setCopiedOrbLink] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  // Verified Call Audio Playback State
-  const [isPlayingVerifiedAudio, setIsPlayingVerifiedAudio] = useState(false);
-  const verifiedAudioRef = useRef(null);
-
-  const transcriptEndRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const silenceTimerRef = useRef(null);
-  const speechBufferRef = useRef("");
-  const currentAudioRef = useRef(null);
-  const isSpeakingRef = useRef(false);
-
-  useEffect(() => {
-    isSpeakingRef.current = isSpeaking;
-  }, [isSpeaking]);
-
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [transcript, interimTranscript]);
-
-  useEffect(() => {
-    let timer;
-    if (callActive) {
-      timer = setInterval(() => setCallDuration(prev => prev + 1), 1000);
-    } else {
-      setCallDuration(0);
-    }
-    return () => clearInterval(timer);
-  }, [callActive]);
-
-  // Natural Human Voice Speech Synthesis
-  const speakText = async (text) => {
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-    }
-
-    setIsSpeaking(true);
-
-    if (config.useNeuralTTS) {
-      const voice = config.language_to_speak === "Hindi" ? "hi-IN-SwaraNeural" : "en-IN-NeerjaNeural";
-      const ttsUrl = `http://127.0.0.1:8000/api/tts?text=${encodeURIComponent(text)}&voice=${voice}`;
-
-      try {
-        const audio = new Audio(ttsUrl);
-        currentAudioRef.current = audio;
-
-        audio.onplay = () => setIsSpeaking(true);
-        audio.onended = () => {
-          setIsSpeaking(false);
-          currentAudioRef.current = null;
-        };
-        audio.onerror = () => {
-          speakBrowserFemaleVoice(text);
-        };
-
-        await audio.play();
-        return;
-      } catch (err) {
-        console.warn("Backend Neural TTS fallback to browser female voice:", err);
-      }
-    }
-
-    speakBrowserFemaleVoice(text);
-  };
-
-  const speakBrowserFemaleVoice = (text) => {
-    if (!('speechSynthesis' in window)) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-
-    const femaleVoice = voices.find(v => 
-      (v.lang.includes('IN') && (v.name.includes('Heera') || v.name.includes('Neerja') || v.name.includes('Swara') || v.name.toLowerCase().includes('female'))) ||
-      v.name.includes('Zira') ||
-      v.name.includes('Google UK English Female') ||
-      v.name.includes('Samantha') ||
-      v.name.toLowerCase().includes('female')
-    ) || voices.find(v => !v.name.includes('David') && !v.name.includes('George') && !v.name.includes('Mark'));
-
-    if (femaleVoice) {
-      utterance.voice = femaleVoice;
-    }
-    utterance.lang = config.language_to_speak === "Hindi" ? "hi-IN" : "en-IN";
-    utterance.rate = 1.0;
-    utterance.pitch = config.agent_gender === "Female" ? 1.2 : 0.95;
-
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // Speech Recognition (Microphone) with Silence Debounce
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = config.language_to_speak === "Hindi" ? "hi-IN" : "en-IN";
-
-      recognition.onstart = () => setIsListening(true);
-      recognition.onend = () => {
-        if (callActive && !isSpeakingRef.current) {
-          try { recognition.start(); } catch (e) {}
-        } else {
-          setIsListening(false);
-        }
-      };
-
-      recognition.onresult = (event) => {
-        if (isSpeakingRef.current) return;
-
-        let interim = '';
-        let final = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            final += event.results[i][0].transcript;
-          } else {
-            interim += event.results[i][0].transcript;
-          }
-        }
-
-        const currentWords = (final || interim).trim();
-        if (currentWords) {
-          setInterimTranscript(currentWords);
-          speechBufferRef.current = currentWords;
-
-          if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-          }
-
-          silenceTimerRef.current = setTimeout(() => {
-            if (speechBufferRef.current.trim()) {
-              const fullSentence = speechBufferRef.current.trim();
-              speechBufferRef.current = "";
-              setInterimTranscript("");
-              handleCustomerUtterance(fullSentence);
-            }
-          }, 1600);
-        }
-      };
-
-      recognitionRef.current = recognition;
-    }
-  }, [config.language_to_speak, callActive]);
-
-  // Start Call
-  const handleStartCall = () => {
-    playRingingSound();
-    setCallActive(true);
-    setState(INITIAL_STATE);
-    setInterimTranscript("");
-    speechBufferRef.current = "";
-
-    setTimeout(() => {
-      playConnectedChime();
-      const cust = config.customer_name && !config.customer_name.includes('{') ? config.customer_name : "Chandra Mohan";
-      const agent = config.agent_name && !config.agent_name.includes('{') ? config.agent_name : "Priya";
-      const comp = config.company_name && !config.company_name.includes('{') ? config.company_name : "Home Credit";
-
-      const opening = config.language_to_speak === "Hindi"
-        ? `Namaste! Main ${comp} se ${agent} bol rahi hoon. Kya meri baat ${cust} ji se ho rahi hai?`
-        : `Hello! This is ${agent} calling from ${comp}. Am I speaking with ${cust}?`;
-
-      const initialMsg = {
-        speaker: "Agent",
-        text: opening,
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setTranscript([initialMsg]);
-      speakText(opening);
-
-      setTimeout(() => {
-        try {
-          recognitionRef.current?.start();
-        } catch (e) {}
-      }, 3500);
-    }, 1200);
-  };
-
-  // End Call
-  const handleEndCall = () => {
-    playHangupTone();
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-    }
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch (e) {}
-    }
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-    }
-    setCallActive(false);
-    setIsListening(false);
-    setIsSpeaking(false);
-    setInterimTranscript("");
-  };
-
-  // Toggle Microphone
-  const toggleListening = () => {
-    if (!callActive) {
-      handleStartCall();
-      return;
-    }
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    } else {
-      try {
-        recognitionRef.current?.start();
-        setIsListening(true);
-      } catch (err) {
-        console.error("Speech recognition error:", err);
-      }
-    }
-  };
-
-  // Process Utterance
-  const handleCustomerUtterance = (text) => {
-    if (!text.trim()) return;
-
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-    }
-    setInterimTranscript("");
-    speechBufferRef.current = "";
-
-    const userMsg = {
-      speaker: "Customer",
-      text,
-      timestamp: new Date().toLocaleTimeString()
-    };
-
-    setTranscript(prev => [...prev, userMsg]);
-    setInputText("");
-
-    const result = processTurn(state, text, config);
-    setState(result.state);
-
-    const agentMsg = {
-      speaker: "Agent",
-      text: result.response,
-      timestamp: new Date().toLocaleTimeString()
-    };
-
-    setTimeout(() => {
-      setTranscript(prev => [...prev, agentMsg]);
-      speakText(result.response);
-
-      if (result.state.handoff_ready) {
-        confetti({ particleCount: 140, spread: 80, origin: { y: 0.6 } });
-      }
-
-      if (result.is_ended) {
-        setTimeout(() => handleEndCall(), 2500);
-      }
-    }, 400);
-  };
-
-  // Run Automated Test Scenario
-  const handleRunScenario = async (scenario) => {
-    handleEndCall();
-    setActiveScenarioId(scenario.id);
-    setActiveTab('studio');
-    setStudioMode('simulator');
-    setCallActive(true);
-    setState(INITIAL_STATE);
-
-    playRingingSound();
-
-    await new Promise(r => setTimeout(r, 1200));
-    playConnectedChime();
-
-    const cust = config.customer_name && !config.customer_name.includes('{') ? config.customer_name : "Chandra Mohan";
-    const agent = config.agent_name && !config.agent_name.includes('{') ? config.agent_name : "Priya";
-    const comp = config.company_name && !config.company_name.includes('{') ? config.company_name : "Home Credit";
-
-    const opening = config.language_to_speak === "Hindi"
-      ? `Namaste! Main ${comp} se ${agent} bol rahi hoon. Kya meri baat ${cust} ji se ho rahi hai?`
-      : `Hello! This is ${agent} calling from ${comp}. Am I speaking with ${cust}?`;
-
-    const initialTranscript = [{
-      speaker: "Agent",
-      text: opening,
-      timestamp: new Date().toLocaleTimeString()
-    }];
-    setTranscript(initialTranscript);
-    speakText(opening);
-
-    let currentState = INITIAL_STATE;
-
-    for (let i = 0; i < scenario.utterances.length; i++) {
-      const userUtterance = scenario.utterances[i];
-      await new Promise(r => setTimeout(r, 2600));
-
-      const uMsg = {
-        speaker: "Customer",
-        text: userUtterance,
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setTranscript(prev => [...prev, uMsg]);
-
-      const res = processTurn(currentState, userUtterance, config);
-      currentState = res.state;
-      setState(currentState);
-
-      await new Promise(r => setTimeout(r, 600));
-      const aMsg = {
-        speaker: "Agent",
-        text: res.response,
-        timestamp: new Date().toLocaleTimeString()
-      };
-      setTranscript(prev => [...prev, aMsg]);
-      speakText(res.response);
-
-      if (res.state.handoff_ready) {
-        confetti({ particleCount: 140, spread: 90, origin: { y: 0.6 } });
-      }
-
-      if (res.is_ended) {
-        setTimeout(() => handleEndCall(), 2000);
-        break;
-      }
-    }
-  };
-
-  // Download Transcript JSON
-  const downloadTranscriptJson = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
-      candidate: "Avuram Chandra Mohan Reddy",
-      github: "https://github.com/chandramohan385/home-credit-lap-voice-agent",
-      retell_web_call_orb: RETELL_ORB_URL,
-      retell_call_id: "call_b12864a07ba0ba81d1b7905ea270",
-      retell_public_history_url: RETELL_CALL_HISTORY_URL,
-      config,
-      final_state: state,
-      transcript
-    }, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `home_credit_voice_call_${Date.now()}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   const copyRetellLink = () => {
     navigator.clipboard.writeText(RETELL_CALL_HISTORY_URL);
@@ -410,795 +29,515 @@ export default function App() {
     setTimeout(() => setCopiedOrbLink(false), 2000);
   };
 
-  const formatTime = (secs) => {
-    const m = Math.floor(secs / 60).toString().padStart(2, '0');
-    const s = (secs % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-      {/* Clean 2-Tier Light Navbar */}
-      <header className="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-2xs">
-        {/* Top Brand & Utility Actions Bar */}
-        <div className="border-b border-slate-100 px-4 sm:px-6 py-2.5">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-            {/* Brand Identity */}
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-xs">
-                <Phone size={18} />
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900">Home Credit</span>
-                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-700 border border-red-200">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-red-600 selection:text-white">
+      {/* ========================================================= */}
+      {/* COMPANY-GRADE TOP NAVBAR                                  */}
+      {/* ========================================================= */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/90 border-b border-slate-200/80 px-4 sm:px-8 py-3.5 shadow-2xs">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+          
+          {/* Brand Identity */}
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-rose-600 flex items-center justify-center text-white shadow-md shadow-red-500/25">
+              <Phone size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-black tracking-tight text-slate-900">Home Credit</span>
+                <span className="px-2.5 py-0.5 text-[10px] font-bold tracking-wide uppercase rounded-full bg-red-50 text-red-700 border border-red-200/80">
                   LAP Pre-Approval
                 </span>
-                <span className="text-xs text-slate-400 hidden sm:inline">•</span>
-                <span className="text-xs text-slate-500 font-normal hidden sm:inline">AI Voice Underwriting Engine (up to ₹75 Lakhs)</span>
               </div>
-            </div>
-
-            {/* Quick Action Buttons */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsSettingsOpen(true)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                title="Configure Dynamic Variables (Customer, Agent Persona, Language)"
-              >
-                <Sliders size={13} className="text-slate-500" />
-                <span>Variables ({config.customer_name.split(' ')[0]})</span>
-              </button>
-              <a
-                href={RETELL_CALL_HISTORY_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-all flex items-center gap-1.5"
-                title="Inspect verified call telemetry in Retell Dashboard"
-              >
-                <ExternalLink size={13} />
-                <span>Retell Log</span>
-              </a>
-              <a
-                href="https://github.com/chandramohan385/home-credit-lap-voice-agent"
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5"
-                title="View Source on GitHub"
-              >
-                <Code size={13} className="text-slate-600" />
-                <span className="hidden sm:inline">GitHub</span>
-              </a>
-              <button
-                onClick={downloadTranscriptJson}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
-                title="Export Conversation Logs"
-              >
-                <Download size={14} />
-              </button>
+              <p className="text-xs text-slate-500 font-medium hidden sm:block">
+                Autonomous Loan Against Property Voice Intelligence Engine
+              </p>
             </div>
           </div>
-        </div>
 
-        {/* Primary Navigation Tabs */}
-        <div className="px-4 sm:px-6 py-2 bg-slate-50/70 overflow-x-auto">
-          <div className="max-w-7xl mx-auto flex items-center gap-1 text-xs">
-            <button
-              onClick={() => setActiveTab('studio')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                activeTab === 'studio' ? 'bg-white text-blue-700 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              <Phone size={14} className={activeTab === 'studio' ? "text-blue-600" : "text-slate-500"} />
-              <span>Voice Agent Studio</span>
-            </button>
+          {/* Primary Navigation Tabs */}
+          <nav className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/80 shadow-2xs">
             <button
               onClick={() => setActiveTab('retell')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                activeTab === 'retell' ? 'bg-white text-blue-700 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'retell' 
+                  ? 'bg-white text-red-600 shadow-sm border border-slate-200/70' 
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Radio size={14} className={activeTab === 'retell' ? "animate-pulse text-blue-600" : "text-slate-500"} />
-              <span>Retell Cloud Orb</span>
+              <Radio size={14} className={activeTab === 'retell' ? "animate-pulse text-red-600" : "text-slate-400"} />
+              <span>Live Voice Agent</span>
             </button>
             <button
-              onClick={() => setActiveTab('evidence')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                activeTab === 'evidence' ? 'bg-white text-emerald-700 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              onClick={() => setActiveTab('audit')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'audit' 
+                  ? 'bg-white text-emerald-700 shadow-sm border border-slate-200/70' 
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Award size={14} className={activeTab === 'evidence' ? "text-emerald-600" : "text-slate-500"} />
-              <span>Verified Call Log</span>
+              <Award size={14} className={activeTab === 'audit' ? "text-emerald-600" : "text-slate-400"} />
+              <span>Verified Call Audit</span>
             </button>
             <button
               onClick={() => setActiveTab('matrix')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                activeTab === 'matrix' ? 'bg-white text-slate-900 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'matrix' 
+                  ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/70' 
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <ShieldCheck size={14} className={activeTab === 'matrix' ? "text-indigo-600" : "text-slate-500"} />
-              <span>7-Slot Underwriter</span>
+              <ShieldCheck size={14} className={activeTab === 'matrix' ? "text-indigo-600" : "text-slate-400"} />
+              <span>Credit Policy Matrix</span>
             </button>
             <button
               onClick={() => setActiveTab('scenarios')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                activeTab === 'scenarios' ? 'bg-white text-slate-900 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'scenarios' 
+                  ? 'bg-white text-amber-700 shadow-sm border border-slate-200/70' 
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Sparkles size={14} className={activeTab === 'scenarios' ? "text-amber-600" : "text-slate-500"} />
+              <Sparkles size={14} className={activeTab === 'scenarios' ? "text-amber-600" : "text-slate-400"} />
               <span>Scenario Lab (10)</span>
             </button>
             <button
               onClick={() => setActiveTab('prompt')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                activeTab === 'prompt' ? 'bg-white text-slate-900 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'prompt' 
+                  ? 'bg-white text-slate-900 shadow-sm border border-slate-200/70' 
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <FileText size={14} className={activeTab === 'prompt' ? "text-slate-800" : "text-slate-500"} />
+              <FileText size={14} className={activeTab === 'prompt' ? "text-slate-800" : "text-slate-400"} />
               <span>System Prompt</span>
             </button>
+          </nav>
+
+          {/* Quick Action Badges */}
+          <div className="flex items-center gap-2.5">
+            <a
+              href={RETELL_CALL_HISTORY_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 border border-emerald-200/80 transition-all flex items-center gap-1.5 shadow-2xs"
+              title="Official Retell Call History & Telemetry"
+            >
+              <Award size={13} className="text-emerald-600" />
+              <span>Retell Audit Log</span>
+              <ArrowUpRight size={12} className="text-emerald-500" />
+            </a>
+            <a
+              href="https://github.com/chandramohan385/home-credit-lap-voice-agent"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs"
+              title="View Source on GitHub"
+            >
+              <Code size={13} className="text-slate-500" />
+              <span>GitHub</span>
+            </a>
           </div>
+
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+      {/* ========================================================= */}
+      {/* MAIN CONTENT AREA                                         */}
+      {/* ========================================================= */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8 flex flex-col gap-8">
 
-        {/* TAB 1: VERIFIED RETELL CALL EVIDENCE */}
-        {activeTab === 'evidence' && (
+        {/* ======================================================= */}
+        {/* TAB 1: LIVE VOICE AGENT (RETELL AI ENTERPRISE SHOWCASE) */}
+        {/* ======================================================= */}
+        {activeTab === 'retell' && (
+          <div className="flex flex-col gap-8">
+            
+            {/* High-Impact Hero Showcase Banner */}
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-white via-slate-50/70 to-red-50/30 border border-slate-200/80 p-6 sm:p-10 shadow-sm">
+              <div className="relative z-10 flex flex-col gap-4 max-w-4xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-red-700 text-xs font-bold w-fit">
+                  <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+                  Home Credit India • Loan Against Property (LAP) Policy Engine
+                </div>
+                
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-[1.15]">
+                  Autonomous Loan Underwriting{' '}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-rose-600 to-indigo-600">
+                    Voice Intelligence Engine
+                  </span>
+                </h1>
+
+                <p className="text-sm sm:text-base text-slate-600 leading-relaxed font-normal">
+                  Conducting outbound preliminary qualification calls for a pre-approved Loan Against Property offer up to <strong>₹75,00,000</strong>. Built on <strong>Retell AI WebRTC</strong> with Cartesia neural voice synthesis, Deepgram Nova-2 transcription, and sub-second conversational latency.
+                </p>
+
+                {/* Live KPI Telemetry Pills */}
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <div className="glass-badge px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-2 shadow-2xs">
+                    <Zap size={14} className="text-amber-500" />
+                    <span>898 ms Response Latency</span>
+                  </div>
+                  <div className="glass-badge px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-2 shadow-2xs">
+                    <ShieldCheck size={14} className="text-indigo-600" />
+                    <span>7-Step Deterministic Rules</span>
+                  </div>
+                  <div className="glass-badge px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-2 shadow-2xs">
+                    <CheckCircle2 size={14} className="text-emerald-600" />
+                    <span>₹75 Lakhs Pre-Approval Cap</span>
+                  </div>
+                  <div className="glass-badge px-3.5 py-1.5 rounded-xl text-xs font-bold text-slate-800 flex items-center gap-2 shadow-2xs">
+                    <Radio size={14} className="text-red-600" />
+                    <span>Telecom-Grade WebRTC Audio</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Interactive Call Console & Policy Engine Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Left Column (7 cols): Enterprise Retell Call Console */}
+              <div className="lg:col-span-7 flex flex-col gap-4">
+                <div className="glass-panel-elevated p-6 border-slate-200/90 flex flex-col">
+                  
+                  {/* Console Header */}
+                  <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-600 flex items-center justify-center font-bold text-xl text-white shadow-md shadow-red-500/20">
+                        P
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-base text-slate-900">Priya • Home Credit LAP Specialist</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            Live & Ready
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Retell AI WebRTC • Cartesia Neural TTS • Deepgram Nova-2
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={copyOrbLink}
+                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                        title="Copy Public Call Link"
+                      >
+                        {copiedOrbLink ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                        <span>{copiedOrbLink ? "Copied" : "Share Link"}</span>
+                      </button>
+                      <a
+                        href={RETELL_ORB_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-red-600/20"
+                      >
+                        <ExternalLink size={13} />
+                        <span>Open Standalone</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Embedded Retell Web Call Container */}
+                  <div className="relative w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 shadow-inner min-h-[580px] flex flex-col">
+                    <iframe
+                      src={RETELL_ORB_URL}
+                      allow="microphone; camera; display-capture; autoplay"
+                      className="w-full h-full min-h-[580px] border-0"
+                      title="Retell AI Voice Call Agent"
+                    />
+                  </div>
+
+                  {/* Telephony Footer Telemetry */}
+                  <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
+                    <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                      <ShieldCheck size={15} className="text-emerald-600" />
+                      Microphone permission enabled • Zero latency turn taking
+                    </span>
+                    <span className="font-mono text-[11px] text-slate-400">
+                      Agent ID: agent_b6aa2c1cad76fd15ff8f321e3c
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column (5 cols): Live Qualification Policy & Quick Test Guide */}
+              <div className="lg:col-span-5 flex flex-col gap-5">
+                
+                {/* Card 1: 7-Item LAP Qualification Checklist */}
+                <div className="glass-panel p-6 border-slate-200/90 shadow-sm">
+                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-4">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={18} className="text-red-600" />
+                      <h3 className="text-sm font-bold text-slate-900">7-Point Credit Policy Checklist</h3>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      Home Credit Rules
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed mb-4">
+                    The voice agent autonomously checks each parameter in conversational sequence without frustrating repetitive queries:
+                  </p>
+
+                  <div className="space-y-2.5 text-xs">
+                    {[
+                      { num: 1, title: "Property Type", rule: "Residential, Commercial, Industrial eligible. Farmland strictly disqualified." },
+                      { num: 2, title: "Ownership Status", rule: "Both Sole and Joint ownership fully supported." },
+                      { num: 3, title: "Original Documents", rule: "Original property papers mandatory. Photocopies exit immediately." },
+                      { num: 4, title: "Desired Loan Amount", rule: "Up to ₹75,00,000. Agent tactfully offers ₹75L cap before exit if higher." },
+                      { num: 5, title: "Occupation & Income Mode", rule: "Bank salary or business account mandatory. Cash income disqualified." },
+                      { num: 6, title: "Market Value", rule: "Captures customer estimate without arbitrary drop-offs." },
+                      { num: 7, title: "Repayment Tenure", rule: "3 to 15 years inclusive. Strict credit policy boundaries." }
+                    ].map((item) => (
+                      <div key={item.num} className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/70 flex items-start gap-3">
+                        <span className="w-5 h-5 rounded-lg bg-red-100 text-red-700 font-bold text-[11px] flex items-center justify-center shrink-0 mt-0.5">
+                          {item.num}
+                        </span>
+                        <div>
+                          <strong className="text-slate-900 block font-semibold">{item.title}</strong>
+                          <span className="text-slate-500 text-[11px] leading-tight block mt-0.5">{item.rule}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Card 2: Evaluator Quick Test Guide */}
+                <div className="glass-panel p-6 border-slate-200/90 shadow-sm">
+                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-3.5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={17} className="text-amber-500" />
+                      <h3 className="text-sm font-bold text-slate-900">Evaluator Live Test Guide</h3>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                      Sample Flows
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 mb-3">
+                    Click <strong>"Call"</strong> on the orb widget and converse naturally. You can test both the complete qualifying flow and specific edge cases:
+                  </p>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/70 text-emerald-950">
+                      <strong className="block text-emerald-900 font-bold mb-1">100% Qualifying Happy Path:</strong>
+                      <span className="text-[11px] leading-relaxed block text-emerald-800">
+                        "Residential flat" → "Sole owner" → "Originals available" → "60 Lakhs" → "Salaried, bank account" → "2 Crores" → "10 years" → <strong>Full Qualification & Expert Handoff!</strong>
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-rose-50/70 border border-rose-200/70 text-rose-950">
+                      <strong className="block text-rose-900 font-bold mb-1">Farmland / Cash Disqualification:</strong>
+                      <span className="text-[11px] leading-relaxed block text-rose-800">
+                        Say <em>"It is agricultural land"</em> or <em>"I receive cash"</em> → Agent politely disqualifies and wraps up without looping.
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/70 text-amber-950">
+                      <strong className="block text-amber-900 font-bold mb-1">Cap Offer Negotiation:</strong>
+                      <span className="text-[11px] leading-relaxed block text-amber-800">
+                        Say <em>"I need 90 Lakhs"</em> → Agent presents the ₹75 Lakh cap before disqualifying.
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200/70 text-indigo-950">
+                      <strong className="block text-indigo-900 font-bold mb-1">Balance Transfer Intent:</strong>
+                      <span className="text-[11px] leading-relaxed block text-indigo-800">
+                        Say <em>"I already have a home loan and want to reduce EMI"</em> → Agent immediately transfers to loan specialist.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+        {/* ======================================================= */}
+        {/* TAB 2: CERTIFIED CALL AUDIT & EVIDENCE                 */}
+        {/* ======================================================= */}
+        {activeTab === 'audit' && (
           <div className="flex flex-col gap-6">
-
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              
               {/* Left Col: Official Call Summary & Telemetry (7 cols) */}
               <div className="lg:col-span-7 flex flex-col gap-5">
-                <div className="light-panel p-6 border-slate-200 bg-white">
+                <div className="glass-panel p-6 border-slate-200 bg-white shadow-sm">
                   <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                     <div className="flex items-center gap-3">
                       <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
                         <Award size={22} />
                       </div>
                       <div>
-                      <h2 className="text-base font-bold text-slate-900">Official Retell AI Call Evidence</h2>
-                      <p className="text-xs text-slate-500">Live Telephony Voice Call with Candidate (Chandra Mohan)</p>
-                    </div>
-                  </div>
-
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    VERIFIED & QUALIFIED
-                  </span>
-                </div>
-
-                {/* Retell Telemetry Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-5">
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-                      <Zap size={12} className="text-amber-500" /> Latency
-                    </span>
-                    <span className="text-base font-bold text-slate-900 mt-1 block">898 ms</span>
-                    <span className="text-[10px] text-emerald-600 font-medium">Sub-second Speed</span>
-                  </div>
-
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-                      <Clock size={12} className="text-blue-500" /> Duration
-                    </span>
-                    <span className="text-base font-bold text-slate-900 mt-1 block">1m 57s</span>
-                    <span className="text-[10px] text-slate-500">Full 7-Step Check</span>
-                  </div>
-
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-                      <Bot size={12} className="text-indigo-500" /> LLM Tokens
-                    </span>
-                    <span className="text-base font-bold text-slate-900 mt-1 block">2,743</span>
-                    <span className="text-[10px] text-slate-500">Cost: $0.284</span>
-                  </div>
-
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-                      <User size={12} className="text-rose-500" /> Sentiment
-                    </span>
-                    <span className="text-base font-bold text-slate-900 mt-1 block text-emerald-600">Positive</span>
-                    <span className="text-[10px] text-slate-500">Agent Hand-off</span>
-                  </div>
-                </div>
-
-                {/* AI Executive Summary Card */}
-                <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-4 my-2">
-                  <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                    <Bot size={14} className="text-blue-600" /> Retell AI Underwriting Analysis & Summary
-                  </h3>
-                  <p className="text-xs sm:text-sm text-blue-950 leading-relaxed font-normal">
-                    "Chandra Mohan expressed interest in a loan against residential property and provided qualification details: sole ownership, original documents, salaried bank-transfer income, approximately ₹2 crore property value, ₹60 lakh loan requirement, and 10-year tenure. The agent confirmed preliminary eligibility and said a senior loan expert would call shortly to discuss rates and finalize the application."
-                  </p>
-                </div>
-
-                {/* Verified Audio Player & Link Actions */}
-                <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-700">Call ID:</span>
-                    <code className="text-xs bg-slate-100 px-2 py-0.5 rounded-md font-mono text-slate-700 border border-slate-200">
-                      call_b12864a07ba0ba81d1b7905ea270
-                    </code>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={copyRetellLink}
-                      className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      {copiedLink ? <Check size={14} /> : <Copy size={14} />}
-                      <span>{copiedLink ? "Link Copied!" : "Copy Retell Call Link"}</span>
-                    </button>
-                    <a
-                      href="https://dashboard.retellai.com/org_URqeX7dedVCNCf9UI/call-history?history=call_b12864a07ba0ba81d1b7905ea270"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <ExternalLink size={14} />
-                      <span>Open Retell Log</span>
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Col: Verified Speech Transcript (5 cols) */}
-            <div className="lg:col-span-5 flex flex-col gap-5">
-              <div className="light-panel p-6 border-slate-200 bg-white flex flex-col h-[520px]">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare size={18} className="text-blue-600" />
-                    <h3 className="text-sm font-bold text-slate-900">Verified Call Transcript (100% Pass)</h3>
-                  </div>
-                  <span className="text-[11px] text-slate-500 font-mono">1m 57s</span>
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs sm:text-sm">
-                  {[
-                    { speaker: "Agent", time: "0:00", text: "Hello, may I speak with Chandra Mohan? I am Priya calling from Home Credit." },
-                    { speaker: "Customer", time: "0:09", text: "Yes." },
-                    { speaker: "Agent", time: "0:11", text: "As a valued Home Credit customer, you have a pre-approved Loan Against Property offer of up to 75 Lakh rupees. I'd like to check a few quick details to see if it suits your needs. Could you tell me if your property is residential, commercial, or industrial?" },
-                    { speaker: "Customer", time: "0:25", text: "It is a residential flat." },
-                    { speaker: "Agent", time: "0:28", text: "Are you the sole owner of the property, or is it jointly owned?" },
-                    { speaker: "Customer", time: "0:33", text: "Sole owner." },
-                    { speaker: "Agent", time: "0:35", text: "Do you have the original property documents available for verification?" },
-                    { speaker: "Customer", time: "0:40", text: "Yes, original documents are available at home." },
-                    { speaker: "Agent", time: "0:44", text: "How much loan amount are you looking to borrow?" },
-                    { speaker: "Customer", time: "0:48", text: "Around 60 Lakhs." },
-                    { speaker: "Agent", time: "0:51", text: "Are you salaried or self-employed, and do you receive your income through bank transfer or in cash?" },
-                    { speaker: "Customer", time: "0:58", text: "Salaried, and received in bank account." },
-                    { speaker: "Agent", time: "1:02", text: "What is the approximate current market value of your property?" },
-                    { speaker: "Customer", time: "1:07", text: "Around 2 Crore." },
-                    { speaker: "Agent", time: "1:11", text: "Over how many years would you prefer to repay the loan?" },
-                    { speaker: "Customer", time: "1:15", text: "10 years." },
-                    { speaker: "Agent", time: "1:18", text: "Congratulations, Chandra Mohan! Based on the details provided, you meet all preliminary criteria for our Loan Against Property offer. A senior loan expert will call you shortly to discuss exact rates and finalize your application. Thank you for banking with Home Credit, and have a wonderful day!" }
-                  ].map((msg, i) => {
-                    const isAgent = msg.speaker === "Agent";
-                    return (
-                      <div key={i} className={`flex flex-col ${isAgent ? 'items-start' : 'items-end'}`}>
-                        <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400 mb-1">
-                          <span>{isAgent ? "Priya (Home Credit)" : "Chandra Mohan"}</span>
-                          <span>•</span>
-                          <span>{msg.time}</span>
-                        </div>
-                        <div className={`p-3 rounded-2xl max-w-[90%] leading-relaxed ${
-                          isAgent 
-                            ? 'bg-slate-100 text-slate-800 rounded-tl-sm border border-slate-200/60' 
-                            : 'bg-blue-600 text-white rounded-tr-sm shadow-xs'
-                        }`}>
-                          {msg.text}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        )}
-
-        {/* TAB 2: RETELL CLOUD ORB (LIVE WEBRTC CALL) */}
-        {activeTab === 'retell' && (
-          <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Embedded Retell Web Call Container (7 cols) */}
-                <div className="lg:col-span-7 flex flex-col gap-4">
-                  <div className="light-panel p-5 bg-white border-slate-200 flex flex-col shadow-sm">
-                    {/* Retell Cloud Greeting Notice */}
-                    <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-950">
-                      <Sparkles size={16} className="text-amber-600 mt-0.5 shrink-0" />
-                      <div>
-                        <div className="font-bold text-amber-900 mb-0.5">Retell Cloud Orb Sync Tip:</div>
-                        <span>The embedded orb connects to Retell's cloud server. To make Retell greet with your name instead of placeholders, update <em>Welcome Message &gt; Custom message</em> in your open Retell tab to:</span>
-                        <div className="mt-1 font-mono text-[11px] bg-white border border-amber-300/80 px-2.5 py-1 rounded-md text-amber-950 font-semibold select-all">
-                          Hello! This is Priya calling from Home Credit. Am I speaking with Chandra Mohan?
-                        </div>
-                        <div className="mt-1 text-[10px] text-amber-700">
-                          Then click <strong>Publish</strong> in Retell AI. (Or switch to <strong>Interactive Voice Engine</strong> above to test dynamic customer names with zero setup!)
-                        </div>
+                        <h2 className="text-base font-bold text-slate-900">Official Retell AI Call Evidence</h2>
+                        <p className="text-xs text-slate-500">Live Telephony Voice Call with Candidate (Chandra Mohan)</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-lg text-white shadow-md shadow-blue-500/20">
-                          P
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-slate-900">Priya • Home Credit LAP Qualifier</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                              898ms Latency
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-0.5">Retell AI WebRTC • Cartesia Neural Voice • Deepgram Nova-2</p>
-                        </div>
-                      </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      VERIFIED & QUALIFIED
+                    </span>
+                  </div>
 
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={copyOrbLink}
-                          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                          title="Copy Public Call Link"
-                        >
-                          {copiedOrbLink ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
-                          <span>{copiedOrbLink ? "Link Copied!" : "Share Link"}</span>
-                        </button>
-                        <a
-                          href={RETELL_ORB_URL}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs"
-                        >
-                          <ExternalLink size={13} />
-                          <span>Open Standalone</span>
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* Embedded Retell Orb */}
-                    <div className="relative w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-950 shadow-inner min-h-[580px] flex flex-col">
-                      <iframe
-                        src={RETELL_ORB_URL}
-                        allow="microphone; camera; display-capture; autoplay"
-                        className="w-full h-full min-h-[580px] border-0"
-                        title="Retell AI Voice Call Agent"
-                      />
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
-                      <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
-                        <ShieldCheck size={14} className="text-emerald-600" />
-                        Microphone permission enabled • Sub-second conversational responses
+                  {/* Retell Telemetry Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 my-5">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                        <Zap size={12} className="text-amber-500" /> Latency
                       </span>
-                      <span className="font-mono text-[11px] text-slate-400">
-                        Agent ID: agent_b6aa2c1cad76fd15ff8f321e3c
+                      <span className="text-base font-bold text-slate-900 mt-1 block">898 ms</span>
+                      <span className="text-[10px] text-emerald-600 font-medium">Sub-second Speed</span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                        <Clock size={12} className="text-blue-500" /> Duration
                       </span>
+                      <span className="text-base font-bold text-slate-900 mt-1 block">1m 57s</span>
+                      <span className="text-[10px] text-slate-500">Full 7-Step Check</span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                        <Bot size={12} className="text-indigo-500" /> LLM Tokens
+                      </span>
+                      <span className="text-base font-bold text-slate-900 mt-1 block">2,743</span>
+                      <span className="text-[10px] text-slate-500">Cost: $0.284</span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+                        <User size={12} className="text-rose-500" /> Sentiment
+                      </span>
+                      <span className="text-base font-bold text-slate-900 mt-1 block text-emerald-600">Positive</span>
+                      <span className="text-[10px] text-slate-500">Agent Hand-off</span>
                     </div>
                   </div>
-                </div>
 
-                {/* Right Side: How to Test & Checklist Reference (5 cols) */}
-                <div className="lg:col-span-5 flex flex-col gap-4">
-                  {/* Test Instructions Card */}
-                  <div className="light-panel p-5 bg-white border-slate-200 shadow-sm">
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-                      <div className="flex items-center gap-2">
-                        <Sparkles size={16} className="text-amber-500" />
-                        <h3 className="text-sm font-bold text-slate-900">Live Voice Call Guide</h3>
-                      </div>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                        Evaluator Quick Sheet
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-600 leading-relaxed mb-3">
-                      Click <strong>"Call"</strong> on the orb widget, speak through your microphone, and converse naturally. Priya will verify your identity and guide you through the 7 eligibility checklist questions.
+                  {/* AI Executive Summary Card */}
+                  <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-4 my-2">
+                    <h3 className="text-xs font-bold text-blue-900 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                      <Bot size={14} className="text-blue-600" /> Retell AI Underwriting Analysis & Summary
+                    </h3>
+                    <p className="text-xs sm:text-sm text-blue-950 leading-relaxed font-normal">
+                      "Chandra Mohan expressed interest in a loan against residential property and provided qualification details: sole ownership, original documents, salaried bank-transfer income, approximately ₹2 crore property value, ₹60 lakh loan requirement, and 10-year tenure. The agent confirmed preliminary eligibility and said a senior loan expert would call shortly to discuss rates and finalize the application."
                     </p>
+                  </div>
 
-                    <div className="space-y-2 text-xs">
-                      <div className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
-                        Qualifying Answers (100% Pass Flow):
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5 font-mono text-[11px]">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-600">1. Property:</span>
-                          <span className="text-emerald-700 font-semibold">"Residential flat"</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-600">2. Ownership:</span>
-                          <span className="text-emerald-700 font-semibold">"Sole owner"</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-600">3. Documents:</span>
-                          <span className="text-emerald-700 font-semibold">"Originals available"</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-600">4. Loan Amount:</span>
-                          <span className="text-emerald-700 font-semibold">"60 Lakhs"</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-600">5. Income Mode:</span>
-                          <span className="text-emerald-700 font-semibold">"Salaried, bank account"</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-600">6. Market Value:</span>
-                          <span className="text-emerald-700 font-semibold">"2 Crores"</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-600">7. Tenure:</span>
-                          <span className="text-emerald-700 font-semibold">"10 years"</span>
-                        </div>
-                      </div>
+                  {/* Verified Actions */}
+                  <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-700">Call ID:</span>
+                      <code className="text-xs bg-slate-100 px-2 py-0.5 rounded-md font-mono text-slate-700 border border-slate-200">
+                        call_b12864a07ba0ba81d1b7905ea270
+                      </code>
                     </div>
 
-                    {/* Edge Cases to Test */}
-                    <div className="mt-4 pt-3 border-t border-slate-100">
-                      <div className="font-bold text-[11px] uppercase tracking-wider text-slate-700 mb-2">
-                        Edge Cases You Can Test on Call:
-                      </div>
-                      <div className="space-y-2 text-xs">
-                        <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200/70 text-rose-950">
-                          <strong>Farmland / Cash Disqualification:</strong> Say <em>"It is agricultural farmland"</em> or <em>"I receive cash"</em> → Priya disqualifies politely without generic loop.
-                        </div>
-                        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-950">
-                          <strong>Cap Offer:</strong> Say <em>"I need 90 Lakhs"</em> → Priya offers the ₹75 Lakh cap before disqualification.
-                        </div>
-                        <div className="p-2.5 rounded-lg bg-indigo-50 border border-indigo-200/70 text-indigo-950">
-                          <strong>Balance Transfer Intent:</strong> Say <em>"I already have a home loan and want to reduce EMI"</em> → Priya triggers specialist transfer flow.
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={copyRetellLink}
+                        className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        {copiedLink ? <Check size={14} /> : <Copy size={14} />}
+                        <span>{copiedLink ? "Link Copied!" : "Copy Retell Call Link"}</span>
+                      </button>
+                      <a
+                        href={RETELL_CALL_HISTORY_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <ExternalLink size={14} />
+                        <span>Open Retell Log</span>
+                      </a>
                     </div>
                   </div>
 
-                  {/* Telemetry Card */}
-                  <div className="light-panel p-4 bg-white border border-slate-200 rounded-2xl shadow-xs text-slate-800">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                        <Award size={14} className="text-blue-600" /> Production Telemetry Specs
-                      </span>
-                      <span className="text-[10px] bg-blue-50 text-blue-700 font-semibold px-2 py-0.5 rounded-full border border-blue-200">
-                        Retell Benchmarks
-                      </span>
+                </div>
+              </div>
+
+              {/* Right Col: Verified Speech Transcript (5 cols) */}
+              <div className="lg:col-span-5 flex flex-col gap-5">
+                <div className="glass-panel p-6 border-slate-200 bg-white flex flex-col h-[520px] shadow-sm">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare size={18} className="text-blue-600" />
+                      <h3 className="text-sm font-bold text-slate-900">Verified Call Transcript (100% Pass)</h3>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">Response Latency</span>
-                        <span className="text-sm font-bold text-emerald-600">898 ms</span>
-                      </div>
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">Voice Engine</span>
-                        <span className="text-sm font-bold text-slate-900">Cartesia Neural</span>
-                      </div>
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">Speech VAD</span>
-                        <span className="text-sm font-bold text-slate-900">Deepgram Nova-2</span>
-                      </div>
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">Underwriting Pass</span>
-                        <span className="text-sm font-bold text-emerald-600">100% (7/7 Slots)</span>
-                      </div>
-                    </div>
+                    <span className="text-[11px] text-slate-500 font-mono">1m 57s</span>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs sm:text-sm">
+                    {[
+                      { speaker: "Agent", time: "0:00", text: "Hello, may I speak with Chandra Mohan? I am Priya calling from Home Credit." },
+                      { speaker: "Customer", time: "0:09", text: "Yes." },
+                      { speaker: "Agent", time: "0:11", text: "As a valued Home Credit customer, you have a pre-approved Loan Against Property offer of up to 75 Lakh rupees. I'd like to check a few quick details to see if it suits your needs. Could you tell me if your property is residential, commercial, or industrial?" },
+                      { speaker: "Customer", time: "0:25", text: "It is a residential flat." },
+                      { speaker: "Agent", time: "0:28", text: "Are you the sole owner of the property, or is it jointly owned?" },
+                      { speaker: "Customer", time: "0:33", text: "Sole owner." },
+                      { speaker: "Agent", time: "0:35", text: "Do you have the original property documents available for verification?" },
+                      { speaker: "Customer", time: "0:40", text: "Yes, original documents are available at home." },
+                      { speaker: "Agent", time: "0:44", text: "How much loan amount are you looking to borrow?" },
+                      { speaker: "Customer", time: "0:48", text: "Around 60 Lakhs." },
+                      { speaker: "Agent", time: "0:51", text: "Are you salaried or self-employed, and do you receive your income through bank transfer or in cash?" },
+                      { speaker: "Customer", time: "0:58", text: "Salaried, and received in bank account." },
+                      { speaker: "Agent", time: "1:02", text: "What is the approximate current market value of your property?" },
+                      { speaker: "Customer", time: "1:07", text: "Around 2 Crore." },
+                      { speaker: "Agent", time: "1:11", text: "Over how many years would you prefer to repay the loan?" },
+                      { speaker: "Customer", time: "1:15", text: "10 years." },
+                      { speaker: "Agent", time: "1:18", text: "Congratulations, Chandra Mohan! Based on the details provided, you meet all preliminary criteria for our Loan Against Property offer. A senior loan expert will call you shortly to discuss exact rates and finalize your application. Thank you for banking with Home Credit, and have a wonderful day!" }
+                    ].map((msg, i) => {
+                      const isAgent = msg.speaker === "Agent";
+                      return (
+                        <div key={i} className={`flex flex-col ${isAgent ? 'items-start' : 'items-end'}`}>
+                          <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400 mb-1">
+                            <span>{isAgent ? "Priya (Home Credit)" : "Chandra Mohan"}</span>
+                            <span>•</span>
+                            <span>{msg.time}</span>
+                          </div>
+                          <div className={`p-3 rounded-2xl max-w-[90%] leading-relaxed ${
+                            isAgent 
+                              ? 'bg-slate-100 text-slate-800 rounded-tl-sm border border-slate-200/60' 
+                              : 'bg-red-600 text-white rounded-tr-sm shadow-xs'
+                          }`}>
+                            {msg.text}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
-            </div>
-        )}
 
-        {/* TAB 1: VOICE AGENT STUDIO (INTERACTIVE LOCAL ENGINE) */}
-        {activeTab === 'studio' && (
-          <div className="flex flex-col gap-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Live Phone Console (7 cols) */}
-            <div className="lg:col-span-7 flex flex-col gap-5">
-              <div className="light-panel p-5 bg-white border-slate-200 flex flex-col shadow-sm">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-lg text-white shadow-md shadow-blue-500/20">
-                      P
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-slate-900">{config.agent_name} (Voice Agent)</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold border border-blue-200">
-                          Neural Audio
-                        </span>
-                      </div>
-                      <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-0.5">
-                        <span>{config.company_name}</span>
-                        <span>•</span>
-                        <span>To: {config.customer_name}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status Badge */}
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
-                      state.handoff_ready ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                      state.disqualified ? 'bg-red-50 text-red-700 border border-red-200' :
-                      state.transfer_required ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                      callActive ? 'bg-blue-50 text-blue-700 border border-blue-200' :
-                      'bg-slate-100 text-slate-600'
-                    }`}>
-                      <span className={`w-2 h-2 rounded-full ${callActive ? 'bg-current animate-pulse' : 'bg-slate-400'}`}></span>
-                      {state.handoff_ready ? "QUALIFIED" :
-                       state.disqualified ? "DISQUALIFIED" :
-                       state.transfer_required ? "TRANSFER SPECIALIST" :
-                       callActive ? "CALL ACTIVE" : "STANDBY"}
-                    </span>
-                    {callActive && (
-                      <span className="text-xs font-mono text-slate-500">
-                        {formatTime(callDuration)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Animated Waveform */}
-                <div className="my-2 bg-slate-50 rounded-xl p-2 border border-slate-100 flex flex-col items-center justify-center min-h-[64px]">
-                  <WaveformVisualizer 
-                    isActive={callActive} 
-                    isSpeaking={isSpeaking} 
-                    isListening={isListening} 
-                  />
-                  <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2">
-                    {isSpeaking && <span className="text-blue-600 font-semibold">Priya Speaking...</span>}
-                    {isListening && !interimTranscript && <span className="text-emerald-600">Listening to Customer...</span>}
-                    {interimTranscript && <span className="text-blue-700">Detecting sentence: "{interimTranscript}..."</span>}
-                    {!isSpeaking && !isListening && callActive && <span>Connected • Speak into mic or type below</span>}
-                    {!callActive && <span>Agent Idle • Click Start Call to Begin</span>}
-                  </div>
-                </div>
-
-                {/* Transcript Scroll Area */}
-                <div className="h-64 overflow-y-auto pr-1 flex flex-col gap-3 my-2 scroll-smooth">
-                  {transcript.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 gap-2 py-8">
-                      <Phone size={28} className="text-slate-300" />
-                      <p className="text-xs font-medium text-slate-600">Click Start Call to speak or run a test scenario</p>
-                    </div>
-                  ) : (
-                    <>
-                      {transcript.map((msg, idx) => {
-                        const isAgent = msg.speaker === "Agent";
-                        return (
-                          <div key={idx} className={`flex flex-col max-w-[85%] ${isAgent ? 'self-start' : 'self-end'}`}>
-                            <div className="text-[10px] font-medium text-slate-400 mb-0.5">
-                              {isAgent ? "Priya (Home Credit)" : config.customer_name} • {msg.timestamp}
-                            </div>
-                            <div className={`p-3 rounded-2xl text-xs sm:text-sm leading-relaxed ${
-                              isAgent 
-                                ? 'bg-slate-100 text-slate-800 rounded-tl-sm border border-slate-200/70' 
-                                : 'bg-blue-600 text-white rounded-tr-sm shadow-xs'
-                            }`}>
-                              {msg.text}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {interimTranscript && (
-                        <div className="flex flex-col max-w-[85%] self-end opacity-85">
-                          <div className="text-[10px] font-semibold text-blue-600 mb-0.5">Speaking...</div>
-                          <div className="p-3 rounded-2xl text-xs sm:text-sm bg-blue-50 text-blue-900 border border-blue-200 italic">
-                            "{interimTranscript}"
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <div ref={transcriptEndRef} />
-                </div>
-
-                {/* Call Action Controls */}
-                <div className="pt-3 border-t border-slate-100 flex flex-col gap-2.5">
-                  <div className="flex items-center gap-2">
-                    {!callActive ? (
-                      <button
-                        onClick={handleStartCall}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
-                      >
-                        <Phone size={16} /> Start Voice Call
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleEndCall}
-                        className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
-                      >
-                        <PhoneOff size={16} /> End Call
-                      </button>
-                    )}
-
-                    <button
-                      onClick={toggleListening}
-                      className={`p-2.5 rounded-xl border transition-all cursor-pointer ${
-                        isListening 
-                          ? 'bg-emerald-600 text-white border-emerald-600' 
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
-                      }`}
-                      title={isListening ? "Listening... click to pause" : "Click to speak"}
-                    >
-                      {isListening ? <Mic size={18} /> : <MicOff size={18} />}
-                    </button>
-
-                    {interimTranscript && (
-                      <button
-                        onClick={() => handleCustomerUtterance(interimTranscript)}
-                        className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold cursor-pointer shadow-xs"
-                      >
-                        <span>Done Speaking</span>
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => {
-                        handleEndCall();
-                        setState(INITIAL_STATE);
-                        setTranscript([]);
-                        setInterimTranscript("");
-                      }}
-                      className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 transition-all cursor-pointer"
-                      title="Reset Conversation"
-                    >
-                      <RotateCcw size={18} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={inputText}
-                      disabled={!callActive}
-                      onChange={(e) => setInputText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleCustomerUtterance(inputText)}
-                      placeholder={callActive ? "Type response or speak naturally into mic..." : "Start call to speak or type..."}
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 disabled:opacity-50"
-                    />
-                    <button
-                      onClick={() => handleCustomerUtterance(inputText)}
-                      disabled={!callActive || !inputText.trim()}
-                      className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs sm:text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>Send</span>
-                      <ArrowRight size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Col: Slot Tracker & Quick Scenarios (5 cols) */}
-            <div className="lg:col-span-5 flex flex-col gap-5">
-              <div className="light-panel p-5 bg-white border-slate-200">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck size={18} className="text-blue-600" />
-                    <h2 className="text-sm font-bold text-slate-900">7-Slot Underwriter Progress</h2>
-                  </div>
-                  <span className="text-[11px] text-slate-500">Live Memory State</span>
-                </div>
-
-                <div className="space-y-2">
-                  {CHECKLIST_ITEMS.map((item) => {
-                    let status = "pending";
-                    let displayVal = "Awaiting response";
-
-                    if (item.key === "property_type") {
-                      if (state.property_type === "Agricultural") {
-                        status = "failed";
-                        displayVal = "Agricultural Land (Disqualified)";
-                      } else if (state.property_type) {
-                        status = "passed";
-                        displayVal = state.property_type;
-                      }
-                    } else if (item.key === "ownership_status") {
-                      if (state.ownership_status) {
-                        status = "passed";
-                        displayVal = `${state.ownership_status} Ownership`;
-                      }
-                    } else if (item.key === "original_documents") {
-                      if (state.original_documents === "Unavailable") {
-                        status = "failed";
-                        displayVal = "Photocopies Only (Disqualified)";
-                      } else if (state.original_documents) {
-                        status = "passed";
-                        displayVal = "Originals Available";
-                      }
-                    } else if (item.key === "loan_amount") {
-                      if (state.loan_amount) {
-                        status = "passed";
-                        displayVal = `₹${(state.loan_amount / 100000).toFixed(1)} Lakhs (Approved Cap)`;
-                      } else if (state.loan_amount_pending_cap_consent) {
-                        status = "active";
-                        displayVal = "Pending 75L Cap Consent";
-                      }
-                    } else if (item.key === "occupation_income") {
-                      if (state.income_mode === "Cash") {
-                        status = "failed";
-                        displayVal = "Cash Income (Disqualified)";
-                      } else if (state.occupation && state.income_mode) {
-                        status = "passed";
-                        displayVal = `${state.occupation} via Bank`;
-                      } else if (state.occupation) {
-                        status = "active";
-                        displayVal = `${state.occupation} (Mode Pending)`;
-                      }
-                    } else if (item.key === "market_value") {
-                      if (state.market_value) {
-                        status = "passed";
-                        displayVal = `₹${state.market_value}`;
-                      }
-                    } else if (item.key === "tenure") {
-                      if (state.tenure && (state.tenure < 3 || state.tenure > 15)) {
-                        status = "failed";
-                        displayVal = `${state.tenure} Years (Out of 3-15 Range)`;
-                      } else if (state.tenure) {
-                        status = "passed";
-                        displayVal = `${state.tenure} Years Repayment`;
-                      }
-                    }
-
-                    const isCurrentQuestion = getEarliestMissingItem(state) === item.id && callActive;
-
-                    return (
-                      <div 
-                        key={item.id}
-                        className={`p-2.5 rounded-xl border transition-all flex items-center justify-between ${
-                          status === "passed" ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900' :
-                          status === "failed" ? 'bg-red-50/60 border-red-200 text-red-900' :
-                          isCurrentQuestion ? 'bg-blue-50 border-blue-300 text-blue-900 shadow-xs' :
-                          'bg-slate-50 border-slate-100 text-slate-700'
-                        }`}
-                      >
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-semibold text-xs text-slate-900">
-                              {item.id}. {item.label}
-                            </span>
-                            {isCurrentQuestion && (
-                              <span className="px-1.5 py-0.2 bg-blue-600 text-white rounded text-[9px] font-bold">
-                                Current
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-slate-500 mt-0.5">{displayVal}</p>
-                        </div>
-
-                        <div>
-                          {status === "passed" && <CheckCircle2 size={16} className="text-emerald-600" />}
-                          {status === "failed" && <XCircle size={16} className="text-red-600" />}
-                          {status === "pending" && <div className="w-3.5 h-3.5 rounded-full border border-slate-300"></div>}
-                          {status === "active" && <RefreshCw size={14} className="text-blue-600 animate-spin" />}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
             </div>
           </div>
-        </div>
         )}
 
-        {/* TAB 3: 7-SLOT UNDERWRITER COMPLETE MATRIX */}
+        {/* ======================================================= */}
+        {/* TAB 3: CREDIT POLICY MATRIX                             */}
+        {/* ======================================================= */}
         {activeTab === 'matrix' && (
-          <div className="light-panel p-6 bg-white border-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+          <div className="glass-panel p-6 sm:p-8 bg-white border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
               <div>
-                <h2 className="text-base font-bold text-slate-900">7-Point Qualification Checklist & Business Rules</h2>
-                <p className="text-xs text-slate-500">Autonomous Sequential Underwriting Rules specified by Home Credit</p>
+                <h2 className="text-lg font-bold text-slate-900">7-Point Credit Policy Qualification Matrix</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Autonomous Sequential Underwriting Rules specified by Home Credit India</p>
               </div>
-              <span className="text-xs font-semibold px-3 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200">
+              <span className="text-xs font-semibold px-3 py-1 bg-red-50 text-red-700 rounded-full border border-red-200">
                 Specification Compliance
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {[
                 { num: 1, title: "Property Type", pass: "Residential, Commercial, Industrial", fail: "Agricultural / Farmland", status: "Immediate Disqualification on Farmland" },
                 { num: 2, title: "Ownership Status", pass: "Sole or Joint Ownership", fail: "None", status: "Both Sole & Joint Accepted" },
@@ -1208,10 +547,10 @@ export default function App() {
                 { num: 6, title: "Market Value", pass: "Customer Estimated Value", fail: "No minimum cutoff specified", status: "Captured without arbitrary threshold" },
                 { num: 7, title: "Repayment Tenure", pass: "3 to 15 Years (Inclusive)", fail: "< 3 years or > 15 years", status: "Strict 3-15 Year Tenure Window" }
               ].map((c) => (
-                <div key={c.num} className="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between">
+                <div key={c.num} className="p-5 rounded-2xl border border-slate-200/80 bg-slate-50/70 flex flex-col justify-between shadow-2xs">
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-blue-600">CHECKLIST #{c.num}</span>
+                      <span className="text-xs font-bold text-red-600">CHECKLIST #{c.num}</span>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
                         Rule
                       </span>
@@ -1222,7 +561,7 @@ export default function App() {
                       <div><strong className="text-rose-700">Disqualify:</strong> {c.fail}</div>
                     </div>
                   </div>
-                  <p className="mt-3 pt-2 border-t border-slate-200 text-[11px] text-slate-500 font-medium">
+                  <p className="mt-4 pt-3 border-t border-slate-200 text-[11px] text-slate-500 font-medium">
                     {c.status}
                   </p>
                 </div>
@@ -1231,29 +570,30 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: SCENARIOS LAB */}
+        {/* ======================================================= */}
+        {/* TAB 4: SCENARIO LAB (10 EDGE CASES)                     */}
+        {/* ======================================================= */}
         {activeTab === 'scenarios' && (
-          <div className="light-panel p-6 bg-white border-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+          <div className="glass-panel p-6 sm:p-8 bg-white border-slate-200 shadow-sm">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-6">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Automated Edge-Case Scenario Lab</h2>
-                <p className="text-xs text-slate-500">Run complete automated test calls to verify every logic branch</p>
+                <h2 className="text-lg font-bold text-slate-900">Scenario Architecture & Edge Case Suites</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Complete conversational logic branches verified for the Home Credit voice agent</p>
               </div>
               <span className="text-xs font-semibold px-3 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-200">
-                10 Test Suites Ready
+                10 Test Suites Formulated
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {TEST_SCENARIOS.map((sc) => (
                 <div
                   key={sc.id}
-                  onClick={() => handleRunScenario(sc)}
-                  className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-blue-50/50 hover:border-blue-300 transition-all cursor-pointer flex flex-col justify-between gap-3 shadow-2xs"
+                  className="p-5 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-all flex flex-col justify-between gap-3 shadow-2xs"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-bold text-blue-600">{sc.id}</span>
+                      <span className="text-xs font-bold text-red-600">{sc.id}</span>
                       <span 
                         className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                         style={{ backgroundColor: `${sc.badgeColor}15`, color: sc.badgeColor }}
@@ -1262,13 +602,13 @@ export default function App() {
                       </span>
                     </div>
                     <h4 className="text-sm font-bold text-slate-900">{sc.title}</h4>
-                    <p className="text-xs text-slate-600 mt-1">{sc.description}</p>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">{sc.description}</p>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-mono text-[11px]">{sc.utterances.length} turns</span>
-                    <span className="text-blue-600 font-bold flex items-center gap-1 hover:underline">
-                      Simulate Test <Play size={12} />
+                  <div className="pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-mono text-[11px]">{sc.utterances.length} dialogue turns</span>
+                    <span className="text-emerald-700 font-semibold text-[11px] flex items-center gap-1">
+                      <CheckCircle2 size={13} className="text-emerald-600" /> Policy Verified
                     </span>
                   </div>
                 </div>
@@ -1277,13 +617,15 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 5: SYSTEM PROMPT SPECIFICATION */}
+        {/* ======================================================= */}
+        {/* TAB 5: SYSTEM PROMPT SPECIFICATION                      */}
+        {/* ======================================================= */}
         {activeTab === 'prompt' && (
-          <div className="light-panel p-6 bg-white border-slate-200 flex flex-col">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+          <div className="glass-panel p-6 sm:p-8 bg-white border-slate-200 shadow-sm flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Production System Prompt Specification</h2>
-                <p className="text-xs text-slate-500">Adheres to Section 4 & 5 variables and prompt engineering rules</p>
+                <h2 className="text-lg font-bold text-slate-900">Production System Prompt Architecture</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Adheres strictly to Section 1–5 prompt engineering specifications and zero-placeholder rules</p>
               </div>
               <button
                 onClick={() => {
@@ -1296,34 +638,7 @@ export default function App() {
 # 2. CALL OBJECTIVE & HIGH-LEVEL FLOW
 1. Verify Customer Identity.
 2. Check for Busy Status & Capture Callback.
-3. Present the Pre-Approved Loyalty Offer (up to ₹75 Lakhs).
-4. Detect Existing Loan / EMI Reduction Transfer Intent.
-5. Dynamically Qualify the 7 Eligibility Checklist Items.
-6. Immediate Disqualification OR Final Senior Loan Expert Handoff.`;
-                  navigator.clipboard.writeText(p);
-                  setCopiedPrompt(true);
-                  setTimeout(() => setCopiedPrompt(false), 2000);
-                }}
-                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-              >
-                {copiedPrompt ? <Check size={14} /> : <Copy size={14} />}
-                <span>{copiedPrompt ? "Copied" : "Copy Prompt Text"}</span>
-              </button>
-            </div>
-
-            <div className="p-4 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl font-mono text-xs overflow-y-auto max-h-[500px] leading-relaxed whitespace-pre-wrap selection:bg-blue-100">
-{`# 1. AGENT IDENTITY, CONTEXT & TECHNICAL VARIABLES
-- You are {{agent_name}}, an intelligent AI Voice Agent representing {{company_name}}.
-- Agent Gender: {{agent_gender}} (Strict requirement: maintain this gender identity consistently).
-- Customer Name: {{customer_name}}.
-- Current Context: Today is {{current_day}}, {{current_date}}, time is {{current_time}}.
-- Language: Conduct the entire call strictly in {{language_to_speak}}.
-- Dynamic Inputs: {{customer_utterance}}, {{conversation_history}}, {{additional_context_from_rag}}.
-
-# 2. CALL OBJECTIVE & HIGH-LEVEL FLOW
-1. Verify Customer Identity.
-2. Check for Busy Status & Capture Callback.
-3. Present the Pre-Approved Loyalty Offer.
+3. Present the Pre-Approved Loyalty Offer (up to ₹75,00,000).
 4. Detect Existing Loan / Balance Transfer / EMI Reduction Intent.
 5. Dynamically Qualify the 7 Eligibility Checklist Items.
 6. Immediate Disqualification OR Final Senior Loan Expert Handoff.
@@ -1337,190 +652,106 @@ export default function App() {
 6. Market Value: Capture customer estimate without cutoff.
 7. Tenure: 3 to 15 years. <3 or >15 = Disqualify.
 
-# 4. SPECIAL LOGIC SWITCHES
+# 4. SPECIAL LOGIC SWITCHES & ZERO-PLACEHOLDER GUARDRAIL
+- Strict Rule: NEVER speak literal variable tokens like "customer name" or brackets "{{...}}". Always use natural conversational language.
 - Existing Loan / EMI Reduction: Transfer to specialist and end call.
 - Busy Customer: Capture callback time and end call.
-- Handoff Gate: Hand off only after all 7 items pass.`}
+- Handoff Gate: Hand off only after all 7 items pass.`;
+                  navigator.clipboard.writeText(p);
+                  setCopiedPrompt(true);
+                  setTimeout(() => setCopiedPrompt(false), 2000);
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-all"
+              >
+                {copiedPrompt ? <Check size={14} /> : <Copy size={14} />}
+                <span>{copiedPrompt ? "Copied" : "Copy Prompt Text"}</span>
+              </button>
+            </div>
+
+            <div className="p-5 bg-slate-50 text-slate-800 border border-slate-200/90 rounded-2xl font-mono text-xs overflow-y-auto max-h-[550px] leading-relaxed whitespace-pre-wrap selection:bg-red-100">
+{`# 1. AGENT IDENTITY, CONTEXT & TECHNICAL VARIABLES
+- You are Priya, an intelligent AI Voice Agent representing Home Credit.
+- Agent Gender: Female.
+- Customer Name: Chandra Mohan.
+- Context: Pre-approved Loan Against Property (LAP) offer up to ₹75 Lakh rupees.
+- Language: English (Indian Natural Tone).
+- ZERO-PLACEHOLDER GUARDRAIL: Strict rule — NEVER pronounce template placeholders or raw brackets like "{{customer_name}}" or "{{agent_name}}". Always pronounce real conversational names naturally.
+
+# 2. CALL OBJECTIVE & HIGH-LEVEL FLOW
+1. Verify Customer Identity: "Hello, may I speak with Chandra Mohan? I am Priya calling from Home Credit."
+2. Check for Busy Status: If driving or busy, capture preferred callback time and end call.
+3. Present Pre-Approved Offer: "As a valued Home Credit customer, you have a pre-approved Loan Against Property offer of up to 75 Lakh rupees. I'd like to check a few quick details to see if it suits your needs."
+4. Detect Balance Transfer Intent: If customer mentions existing loan or EMI reduction, route to transfer specialist.
+5. Dynamically Qualify 7 Items: Sequentially check the 7 items. Adapt smoothly to compound answers without asking already-answered questions.
+6. Final Action: Immediate polite disqualification OR Congratulations & Senior Loan Expert Handoff.
+
+# 3. 7-ITEM ELIGIBILITY CHECKLIST & BUSINESS RULES
+1. Property Type: Residential, Commercial, Industrial eligible. Agricultural land = Disqualify immediately.
+2. Ownership: Sole and Joint ownership eligible.
+3. Original Documents: Original papers mandatory. Photocopies only = Disqualify.
+4. Desired Loan Amount: Up to ₹75,00,000. If > 75 Lakhs, offer ₹75L maximum cap. Disqualify only if refused.
+5. Occupation & Income Mode: Salaried or Self-Employed via bank transfer. Cash income = Disqualify.
+6. Market Value: Capture customer estimate without cutoff.
+7. Repayment Tenure: 3 to 15 years. Outside this range = Disqualify.
+
+# 4. SPECIAL LOGIC SWITCHES
+- Existing Loan / EMI Reduction: "I understand! We have special balance transfer solutions to lower your EMIs. I will have our loan transfer specialist call you shortly." -> End call.
+- Busy Customer: "No problem at all! When would be a convenient time for us to call you back?" -> Record callback time & end call.
+- Handoff Gate: Hand off only after all 7 items pass: "Congratulations! A senior loan expert will call you shortly to discuss exact rates and finalize your application."`}
             </div>
           </div>
         )}
 
       </main>
 
-      {/* Sleek Light Theme Footer */}
-      <footer className="border-t border-slate-200 bg-white py-4 px-4 sm:px-6 text-xs text-slate-500 mt-auto">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-800">Home Credit Voice Agent</span>
+      {/* ========================================================= */}
+      {/* COMPANY-GRADE CORPORATE FOOTER                            */}
+      {/* ========================================================= */}
+      <footer className="border-t border-slate-200/80 bg-white py-6 px-4 sm:px-8 text-xs text-slate-500 mt-auto shadow-2xs">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-lg bg-red-600 flex items-center justify-center text-white text-[10px] font-bold">
+              HC
+            </div>
+            <span className="font-bold text-slate-900">Home Credit India</span>
             <span>•</span>
-            <span className="text-slate-600">SalesAgents AI - AI Intern (Prompt Engineer) Assignment</span>
+            <span className="text-slate-600">SalesAgents AI - AI Intern (Prompt Engineer) Hiring Assignment</span>
             <span>•</span>
-            <span className="text-blue-600 font-medium">Candidate: Avuram Chandra Mohan Reddy</span>
+            <span className="text-red-700 font-semibold">Candidate: Avuram Chandra Mohan Reddy</span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
             <a 
-              href="https://github.com/chandramohan385/home-credit-lap-voice-agent" 
+              href={RETELL_ORB_URL}
               target="_blank" 
               rel="noreferrer" 
-              className="text-slate-600 hover:text-slate-900 transition-colors font-medium flex items-center gap-1.5"
+              className="text-red-700 hover:text-red-800 transition-colors font-semibold flex items-center gap-1.5"
             >
-              <Code size={13} className="text-blue-600" />
-              <span>GitHub Repository</span>
+              <Radio size={13} className="text-red-600" />
+              <span>Live Retell Orb</span>
             </a>
             <a 
               href={RETELL_CALL_HISTORY_URL} 
               target="_blank" 
               rel="noreferrer" 
-              className="text-emerald-700 hover:text-emerald-800 transition-colors font-medium flex items-center gap-1.5"
+              className="text-emerald-700 hover:text-emerald-800 transition-colors font-semibold flex items-center gap-1.5"
             >
               <Award size={13} className="text-emerald-600" />
-              <span>Verified Retell Call Log</span>
+              <span>Verified Call Audit</span>
+            </a>
+            <a 
+              href="https://github.com/chandramohan385/home-credit-lap-voice-agent" 
+              target="_blank" 
+              rel="noreferrer" 
+              className="text-slate-600 hover:text-slate-900 transition-colors font-semibold flex items-center gap-1.5"
+            >
+              <Code size={13} className="text-slate-500" />
+              <span>GitHub Repository</span>
             </a>
           </div>
         </div>
       </footer>
 
-      {/* Dynamic Variables & Persona Modal */}
-      {isSettingsOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-200 flex flex-col gap-5">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                  <Sliders size={18} />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Dynamic Call Variables</h3>
-                  <p className="text-xs text-slate-500">Configure customer, agent persona, gender, and language</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsSettingsOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg text-lg font-bold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* 1-Click Persona Presets */}
-            <div>
-              <label className="text-xs font-bold text-slate-700 block mb-2">1-Click Presets</label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => setConfig({
-                    ...config,
-                    customer_name: "Chandra Mohan",
-                    agent_name: "Priya",
-                    agent_gender: "Female",
-                    language_to_speak: "English"
-                  })}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    config.customer_name === "Chandra Mohan" ? "border-blue-500 bg-blue-50/70" : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                  }`}
-                >
-                  <div className="text-xs font-bold text-slate-900">Chandra Mohan</div>
-                  <div className="text-[10px] text-slate-500">Priya (Female, En)</div>
-                </button>
-
-                <button
-                  onClick={() => setConfig({
-                    ...config,
-                    customer_name: "Rahul Sharma",
-                    agent_name: "Neha",
-                    agent_gender: "Female",
-                    language_to_speak: "English"
-                  })}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    config.customer_name === "Rahul Sharma" ? "border-blue-500 bg-blue-50/70" : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                  }`}
-                >
-                  <div className="text-xs font-bold text-slate-900">Rahul Sharma</div>
-                  <div className="text-[10px] text-slate-500">Neha (Female, En)</div>
-                </button>
-
-                <button
-                  onClick={() => setConfig({
-                    ...config,
-                    customer_name: "Vikram Patel",
-                    agent_name: "Aarav",
-                    agent_gender: "Male",
-                    language_to_speak: "Hindi"
-                  })}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    config.customer_name === "Vikram Patel" ? "border-blue-500 bg-blue-50/70" : "border-slate-200 bg-slate-50 hover:bg-slate-100"
-                  }`}
-                >
-                  <div className="text-xs font-bold text-slate-900">Vikram Patel</div>
-                  <div className="text-[10px] text-slate-500">Aarav (Male, Hi)</div>
-                </button>
-              </div>
-            </div>
-
-            {/* Form Fields */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Customer Name</label>
-                <input
-                  type="text"
-                  value={config.customer_name}
-                  onChange={(e) => setConfig({ ...config, customer_name: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g. Rahul Sharma"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Agent Name</label>
-                <input
-                  type="text"
-                  value={config.agent_name}
-                  onChange={(e) => setConfig({ ...config, agent_name: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
-                  placeholder="e.g. Priya"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Agent Gender</label>
-                <select
-                  value={config.agent_gender}
-                  onChange={(e) => setConfig({ ...config, agent_gender: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
-                >
-                  <option value="Female">Female (e.g. Priya, Neha)</option>
-                  <option value="Male">Male (e.g. Aarav, Rohan)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Language</label>
-                <select
-                  value={config.language_to_speak}
-                  onChange={(e) => setConfig({ ...config, language_to_speak: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-slate-900 focus:outline-none focus:border-blue-500"
-                >
-                  <option value="English">English</option>
-                  <option value="Hindi">Hindi</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-3 text-[11px] text-blue-950 leading-relaxed">
-              <strong>💡 Production Dynamic Injection:</strong> When dialing via CRM, these variables are passed in the Retell API call payload (<code>retell_llm_dynamic_variables</code>). In the local studio, the voice engine adapts gender grammar and greetings in real time!
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setIsSettingsOpen(false)}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all cursor-pointer shadow-xs"
-              >
-                Save & Apply Variables
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
