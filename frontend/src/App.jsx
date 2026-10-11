@@ -418,43 +418,92 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-      {/* Sleek Unified Light Navbar */}
-      <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-50 px-4 sm:px-6 py-3 shadow-xs">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          {/* Brand Identity */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-sm shadow-red-600/30">
-              <Phone size={20} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
+      {/* Clean 2-Tier Light Navbar */}
+      <header className="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-2xs">
+        {/* Top Brand & Utility Actions Bar */}
+        <div className="border-b border-slate-100 px-4 sm:px-6 py-2.5">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            {/* Brand Identity */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-xs">
+                <Phone size={18} />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900">Home Credit</span>
                 <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-700 border border-red-200">
                   LAP Pre-Approval
                 </span>
+                <span className="text-xs text-slate-400 hidden sm:inline">•</span>
+                <span className="text-xs text-slate-500 font-normal hidden sm:inline">AI Voice Underwriting Engine (up to ₹75 Lakhs)</span>
               </div>
-              <p className="text-xs text-slate-500 font-normal">AI Voice Agent • Loan Against Property (up to ₹75 Lakhs)</p>
+            </div>
+
+            {/* Quick Action Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                title="Configure Dynamic Variables (Customer, Agent Persona, Language)"
+              >
+                <Sliders size={13} className="text-slate-500" />
+                <span>Variables ({config.customer_name.split(' ')[0]})</span>
+              </button>
+              <a
+                href={RETELL_CALL_HISTORY_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-all flex items-center gap-1.5"
+                title="Inspect verified call telemetry in Retell Dashboard"
+              >
+                <ExternalLink size={13} />
+                <span>Retell Log</span>
+              </a>
+              <a
+                href="https://github.com/chandramohan385/home-credit-lap-voice-agent"
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5"
+                title="View Source on GitHub"
+              >
+                <Code size={13} className="text-slate-600" />
+                <span className="hidden sm:inline">GitHub</span>
+              </a>
+              <button
+                onClick={downloadTranscriptJson}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
+                title="Export Conversation Logs"
+              >
+                <Download size={14} />
+              </button>
             </div>
           </div>
+        </div>
 
-          {/* Clean Segmented Tab Navigation */}
-          <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+        {/* Primary Navigation Tabs */}
+        <div className="px-4 sm:px-6 py-2 bg-slate-50/70 overflow-x-auto">
+          <div className="max-w-7xl mx-auto flex items-center gap-1 text-xs">
             <button
-              onClick={() => {
-                setActiveTab('studio');
-                setStudioMode('retell');
-              }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'studio' ? 'bg-white text-blue-700 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+              onClick={() => setActiveTab('studio')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                activeTab === 'studio' ? 'bg-white text-blue-700 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Radio size={14} className={activeTab === 'studio' ? "animate-pulse text-blue-600" : "text-slate-500"} />
-              <span>Live Voice Studio</span>
+              <Phone size={14} className={activeTab === 'studio' ? "text-blue-600" : "text-slate-500"} />
+              <span>Voice Agent Studio</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('retell')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                activeTab === 'retell' ? 'bg-white text-blue-700 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <Radio size={14} className={activeTab === 'retell' ? "animate-pulse text-blue-600" : "text-slate-500"} />
+              <span>Retell Cloud Orb</span>
             </button>
             <button
               onClick={() => setActiveTab('evidence')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'evidence' ? 'bg-white text-emerald-700 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                activeTab === 'evidence' ? 'bg-white text-emerald-700 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <Award size={14} className={activeTab === 'evidence' ? "text-emerald-600" : "text-slate-500"} />
@@ -462,8 +511,8 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('matrix')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'matrix' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                activeTab === 'matrix' ? 'bg-white text-slate-900 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <ShieldCheck size={14} className={activeTab === 'matrix' ? "text-indigo-600" : "text-slate-500"} />
@@ -471,8 +520,8 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('scenarios')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'scenarios' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                activeTab === 'scenarios' ? 'bg-white text-slate-900 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <Sparkles size={14} className={activeTab === 'scenarios' ? "text-amber-600" : "text-slate-500"} />
@@ -480,51 +529,12 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveTab('prompt')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'prompt' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                activeTab === 'prompt' ? 'bg-white text-slate-900 shadow-xs border border-slate-200' : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <FileText size={14} className={activeTab === 'prompt' ? "text-slate-800" : "text-slate-500"} />
               <span>System Prompt</span>
-            </button>
-          </nav>
-
-          {/* Quick Utility Actions */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-              title="Configure Dynamic Variables (Customer, Agent Persona, Language)"
-            >
-              <Sliders size={13} className="text-slate-500" />
-              <span>Variables ({config.customer_name.split(' ')[0]})</span>
-            </button>
-            <a
-              href={RETELL_CALL_HISTORY_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-all flex items-center gap-1.5"
-              title="Inspect verified call telemetry in Retell Dashboard"
-            >
-              <ExternalLink size={13} />
-              <span>Retell Log</span>
-            </a>
-            <a
-              href="https://github.com/chandramohan385/home-credit-lap-voice-agent"
-              target="_blank"
-              rel="noreferrer"
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5"
-              title="View Source on GitHub"
-            >
-              <Code size={13} className="text-slate-600" />
-              <span>GitHub</span>
-            </a>
-            <button
-              onClick={downloadTranscriptJson}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
-              title="Export Conversation Logs"
-            >
-              <Download size={14} />
             </button>
           </div>
         </div>
@@ -690,52 +700,10 @@ export default function App() {
         </div>
         )}
 
-        {/* TAB 2: LIVE VOICE STUDIO */}
-        {activeTab === 'studio' && (
+        {/* TAB 2: RETELL CLOUD ORB (LIVE WEBRTC CALL) */}
+        {activeTab === 'retell' && (
           <div className="flex flex-col gap-6">
-            {/* Studio Header & Engine Mode Switcher */}
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-slate-900">Live Voice Agent Studio</h2>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Dual Engine Architecture
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Experience telecom-grade live voice synthesis or run deterministic state-machine test scenarios.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                <button
-                  onClick={() => setStudioMode('simulator')}
-                  className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    studioMode === 'simulator'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Phone size={14} className={studioMode === 'simulator' ? 'text-white' : 'text-slate-500'} />
-                  <span>Interactive Voice Engine</span>
-                </button>
-                <button
-                  onClick={() => setStudioMode('retell')}
-                  className={`px-3.5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    studioMode === 'retell'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Radio size={14} className={studioMode === 'retell' ? 'animate-pulse text-sky-200' : 'text-slate-500'} />
-                  <span>Retell AI Cloud Orb</span>
-                </button>
-              </div>
-            </div>
-
-            {studioMode === 'retell' ? (
-              /* RETELL LIVE WEBRTC CALL VIEW */
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Embedded Retell Web Call Container (7 cols) */}
                 <div className="lg:col-span-7 flex flex-col gap-4">
                   <div className="light-panel p-5 bg-white border-slate-200 flex flex-col shadow-sm">
@@ -919,9 +887,13 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            ) : (
-              /* LOCAL SIMULATOR & SANDBOX */
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            </div>
+        )}
+
+        {/* TAB 1: VOICE AGENT STUDIO (INTERACTIVE LOCAL ENGINE) */}
+        {activeTab === 'studio' && (
+          <div className="flex flex-col gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Live Phone Console (7 cols) */}
             <div className="lg:col-span-7 flex flex-col gap-5">
               <div className="light-panel p-5 bg-white border-slate-200 flex flex-col shadow-sm">
@@ -1210,8 +1182,7 @@ export default function App() {
               </div>
             </div>
           </div>
-            )}
-          </div>
+        </div>
         )}
 
         {/* TAB 3: 7-SLOT UNDERWRITER COMPLETE MATRIX */}
