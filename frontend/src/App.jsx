@@ -17,7 +17,7 @@ const RETELL_CALL_HISTORY_URL = "https://dashboard.retellai.com/org_URqeX7dedVCN
 
 export default function App() {
   // Navigation / View Tabs
-  const [activeTab, setActiveTab] = useState('evidence'); // 'evidence' | 'studio' | 'matrix' | 'scenarios' | 'prompt'
+  const [activeTab, setActiveTab] = useState('studio'); // 'studio' | 'evidence' | 'matrix' | 'scenarios' | 'prompt'
   const [studioMode, setStudioMode] = useState('retell'); // 'retell' | 'simulator'
 
   // Agent Configuration
@@ -418,83 +418,47 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
-      {/* Top Banner & Submission Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border-b border-slate-800 px-4 py-2.5 text-xs">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="font-semibold text-slate-100">SalesAgents AI - AI Intern (Prompt Engineer) Hiring Assignment</span>
-            <span className="text-slate-400">• Candidate:</span>
-            <span className="font-medium text-sky-400">Avuram Chandra Mohan Reddy</span>
-          </div>
-
-          <div className="flex items-center gap-4 text-slate-300">
-            <a 
-              href="https://github.com/chandramohan385/home-credit-lap-voice-agent" 
-              target="_blank" 
-              rel="noreferrer"
-              className="flex items-center gap-1.5 hover:text-white transition-colors"
-            >
-              <Code size={14} className="text-sky-400" />
-              <span>github.com/chandramohan385/home-credit-lap-voice-agent</span>
-            </a>
-            <button
-              onClick={copyOrbLink}
-              className="flex items-center gap-1.5 text-sky-400 hover:text-sky-300 cursor-pointer font-medium"
-            >
-              <Phone size={13} />
-              <span>{copiedOrbLink ? "Orb Link Copied!" : "Retell Web Call Orb"}</span>
-            </button>
-            <span className="text-slate-600">|</span>
-            <button
-              onClick={copyRetellLink}
-              className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 cursor-pointer font-medium"
-            >
-              <Award size={14} />
-              <span>{copiedLink ? "History Copied!" : "Retell Verified (898ms)"}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Navbar */}
-      <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-50 px-4 py-3 shadow-xs">
+      {/* Sleek Unified Light Navbar */}
+      <header className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-0 z-50 px-4 sm:px-6 py-3 shadow-xs">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+          {/* Brand Identity */}
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-md shadow-red-500/20 text-white">
-              <Phone size={22} />
+            <div className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-sm shadow-red-600/30">
+              <Phone size={20} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold tracking-tight text-slate-900">Home Credit Voice Agent</h1>
+                <span className="text-base sm:text-lg font-bold tracking-tight text-slate-900">Home Credit</span>
                 <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-50 text-red-700 border border-red-200">
                   LAP Pre-Approval
                 </span>
               </div>
-              <p className="text-xs text-slate-500">Autonomous Conversational Loan Underwriting Engine (up to ₹75 Lakhs)</p>
+              <p className="text-xs text-slate-500 font-normal">AI Voice Agent • Loan Against Property (up to ₹75 Lakhs)</p>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-            <button
-              onClick={() => setActiveTab('evidence')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'evidence' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Award size={14} className="text-emerald-600" /> Verified Retell Call
-            </button>
+          {/* Clean Segmented Tab Navigation */}
+          <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               onClick={() => {
                 setActiveTab('studio');
                 setStudioMode('retell');
               }}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                activeTab === 'studio' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+                activeTab === 'studio' ? 'bg-white text-blue-700 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Radio size={14} className="text-blue-600" /> Live Voice Studio
+              <Radio size={14} className={activeTab === 'studio' ? "animate-pulse text-blue-600" : "text-slate-500"} />
+              <span>Live Voice Studio</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('evidence')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                activeTab === 'evidence' ? 'bg-white text-emerald-700 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Award size={14} className={activeTab === 'evidence' ? "text-emerald-600" : "text-slate-500"} />
+              <span>Verified Call Log</span>
             </button>
             <button
               onClick={() => setActiveTab('matrix')}
@@ -502,7 +466,8 @@ export default function App() {
                 activeTab === 'matrix' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <ShieldCheck size={14} className="text-indigo-600" /> 7-Slot Underwriter
+              <ShieldCheck size={14} className={activeTab === 'matrix' ? "text-indigo-600" : "text-slate-500"} />
+              <span>7-Slot Underwriter</span>
             </button>
             <button
               onClick={() => setActiveTab('scenarios')}
@@ -510,7 +475,8 @@ export default function App() {
                 activeTab === 'scenarios' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <Sparkles size={14} className="text-amber-600" /> Scenario Lab (10)
+              <Sparkles size={14} className={activeTab === 'scenarios' ? "text-amber-600" : "text-slate-500"} />
+              <span>Scenario Lab (10)</span>
             </button>
             <button
               onClick={() => setActiveTab('prompt')}
@@ -518,43 +484,47 @@ export default function App() {
                 activeTab === 'prompt' ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <FileText size={14} className="text-slate-700" /> System Prompt
+              <FileText size={14} className={activeTab === 'prompt' ? "text-slate-800" : "text-slate-500"} />
+              <span>System Prompt</span>
             </button>
-          </div>
+          </nav>
 
-          {/* Action Buttons */}
+          {/* Quick Utility Actions */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setActiveTab('studio');
-                setStudioMode('retell');
-              }}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all flex items-center gap-1.5 shadow-sm shadow-blue-500/20 cursor-pointer"
-            >
-              <Radio size={14} className="animate-pulse text-sky-200" />
-              <span>Talk to Agent (Retell AI)</span>
-            </button>
             <button
               onClick={() => setIsSettingsOpen(true)}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-              title="Configure Dynamic Variables (Customer, Agent, Language)"
+              title="Configure Dynamic Variables (Customer, Agent Persona, Language)"
             >
-              <Sliders size={14} className="text-slate-500" />
-              <span>Variables</span>
+              <Sliders size={13} className="text-slate-500" />
+              <span>Variables ({config.customer_name.split(' ')[0]})</span>
             </button>
             <a
               href={RETELL_CALL_HISTORY_URL}
               target="_blank"
               rel="noreferrer"
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition-all flex items-center gap-1.5"
+              title="Inspect verified call telemetry in Retell Dashboard"
             >
-              <ExternalLink size={14} /> Retell Log
+              <ExternalLink size={13} />
+              <span>Retell Log</span>
+            </a>
+            <a
+              href="https://github.com/chandramohan385/home-credit-lap-voice-agent"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5"
+              title="View Source on GitHub"
+            >
+              <Code size={13} className="text-slate-600" />
+              <span>GitHub</span>
             </a>
             <button
               onClick={downloadTranscriptJson}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 transition-all cursor-pointer"
+              title="Export Conversation Logs"
             >
-              <Download size={14} /> Export Logs
+              <Download size={14} />
             </button>
           </div>
         </div>
@@ -563,50 +533,9 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
 
-        {/* TAB 1: VERIFIED RETELL CALL EVIDENCE (Default Highlight View) */}
+        {/* TAB 1: VERIFIED RETELL CALL EVIDENCE */}
         {activeTab === 'evidence' && (
           <div className="flex flex-col gap-6">
-            {/* Live Call Invitation Banner */}
-            <div className="bg-gradient-to-r from-blue-50 via-indigo-50/50 to-white border border-blue-200/80 rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
-              <div className="flex items-center gap-3.5">
-                <div className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-                  <Radio size={22} className="animate-pulse" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900">Experience this Voice Agent Live Right Now</h3>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                      898ms Latency
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 mt-0.5">
-                    Speak directly to Priya using Retell AI's WebRTC audio engine with sub-second turnaround and human natural tone.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2.5">
-                <button
-                  onClick={() => {
-                    setActiveTab('studio');
-                    setStudioMode('retell');
-                  }}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer"
-                >
-                  <Phone size={14} />
-                  <span>Launch Live Retell Call</span>
-                </button>
-                <a
-                  href={RETELL_ORB_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold transition-all shadow-2xs flex items-center gap-1.5"
-                >
-                  <ExternalLink size={14} />
-                  <span>Open Fullscreen</span>
-                </a>
-              </div>
-            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Left Col: Official Call Summary & Telemetry (7 cols) */}
@@ -945,31 +874,31 @@ export default function App() {
                   </div>
 
                   {/* Telemetry Card */}
-                  <div className="light-panel p-4 bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl shadow-sm">
+                  <div className="light-panel p-4 bg-white border border-slate-200 rounded-2xl shadow-xs text-slate-800">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <Award size={14} /> Production Telemetry Specs
+                      <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                        <Award size={14} className="text-blue-600" /> Production Telemetry Specs
                       </span>
-                      <span className="text-[10px] bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-full border border-sky-400/30">
+                      <span className="text-[10px] bg-blue-50 text-blue-700 font-semibold px-2 py-0.5 rounded-full border border-blue-200">
                         Retell Benchmarks
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-white/5 p-2 rounded-lg border border-white/10">
-                        <span className="text-[10px] text-slate-400 block">Response Latency</span>
-                        <span className="text-sm font-bold text-emerald-400">898 ms</span>
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <span className="text-[10px] text-slate-500 block">Response Latency</span>
+                        <span className="text-sm font-bold text-emerald-600">898 ms</span>
                       </div>
-                      <div className="bg-white/5 p-2 rounded-lg border border-white/10">
-                        <span className="text-[10px] text-slate-400 block">Voice Engine</span>
-                        <span className="text-sm font-bold text-white">Cartesia Neural</span>
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <span className="text-[10px] text-slate-500 block">Voice Engine</span>
+                        <span className="text-sm font-bold text-slate-900">Cartesia Neural</span>
                       </div>
-                      <div className="bg-white/5 p-2 rounded-lg border border-white/10">
-                        <span className="text-[10px] text-slate-400 block">Speech VAD</span>
-                        <span className="text-sm font-bold text-white">Deepgram Nova-2</span>
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <span className="text-[10px] text-slate-500 block">Speech VAD</span>
+                        <span className="text-sm font-bold text-slate-900">Deepgram Nova-2</span>
                       </div>
-                      <div className="bg-white/5 p-2 rounded-lg border border-white/10">
-                        <span className="text-[10px] text-slate-400 block">Underwriting Pass</span>
-                        <span className="text-sm font-bold text-emerald-400">100% (7/7 Slots)</span>
+                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                        <span className="text-[10px] text-slate-500 block">Underwriting Pass</span>
+                        <span className="text-sm font-bold text-emerald-600">100% (7/7 Slots)</span>
                       </div>
                     </div>
                   </div>
@@ -1396,7 +1325,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="p-4 bg-slate-900 text-slate-100 rounded-xl font-mono text-xs overflow-y-auto max-h-[500px] leading-relaxed whitespace-pre-wrap">
+            <div className="p-4 bg-slate-50 text-slate-800 border border-slate-200 rounded-xl font-mono text-xs overflow-y-auto max-h-[500px] leading-relaxed whitespace-pre-wrap selection:bg-blue-100">
 {`# 1. AGENT IDENTITY, CONTEXT & TECHNICAL VARIABLES
 - You are {{agent_name}}, an intelligent AI Voice Agent representing {{company_name}}.
 - Agent Gender: {{agent_gender}} (Strict requirement: maintain this gender identity consistently).
@@ -1431,6 +1360,40 @@ export default function App() {
         )}
 
       </main>
+
+      {/* Sleek Light Theme Footer */}
+      <footer className="border-t border-slate-200 bg-white py-4 px-4 sm:px-6 text-xs text-slate-500 mt-auto">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-800">Home Credit Voice Agent</span>
+            <span>•</span>
+            <span className="text-slate-600">SalesAgents AI - AI Intern (Prompt Engineer) Assignment</span>
+            <span>•</span>
+            <span className="text-blue-600 font-medium">Candidate: Avuram Chandra Mohan Reddy</span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <a 
+              href="https://github.com/chandramohan385/home-credit-lap-voice-agent" 
+              target="_blank" 
+              rel="noreferrer" 
+              className="text-slate-600 hover:text-slate-900 transition-colors font-medium flex items-center gap-1.5"
+            >
+              <Code size={13} className="text-blue-600" />
+              <span>GitHub Repository</span>
+            </a>
+            <a 
+              href={RETELL_CALL_HISTORY_URL} 
+              target="_blank" 
+              rel="noreferrer" 
+              className="text-emerald-700 hover:text-emerald-800 transition-colors font-medium flex items-center gap-1.5"
+            >
+              <Award size={13} className="text-emerald-600" />
+              <span>Verified Retell Call Log</span>
+            </a>
+          </div>
+        </div>
+      </footer>
 
       {/* Dynamic Variables & Persona Modal */}
       {isSettingsOpen && (
