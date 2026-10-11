@@ -8,16 +8,22 @@
 > **SalesAgents AI - AI Intern (Prompt Engineer) Hiring Assignment Solution**  
 > An enterprise-grade, conversational voice agent designed for **Home Credit** to conduct outbound preliminary qualification calls for a pre-approved Loan Against Property (LAP) offer up to ₹75,00,000.
 
+### 🔗 Official Live Links & Verification
+* **🎙️ Live Voice Agent Call (Retell AI WebRTC Orb)**: [agent.retellai.com/orb/agent_b6aa2c1cad76fd15ff8f321e3c](https://agent.retellai.com/orb/agent_b6aa2c1cad76fd15ff8f321e3c?token=94f6800d5a37ccae9e8db30f9e58c405)
+* **📊 Retell Call Recording & Telemetry Log (898ms Latency • 100% Pass)**: [Retell Dashboard Call History](https://dashboard.retellai.com/org_URqeX7dedVCNCf9UI/call-history?history=call_b12864a07ba0ba81d1b7905ea270)
+* **💻 GitHub Repository**: [github.com/chandramohan385/home-credit-lap-voice-agent](https://github.com/chandramohan385/home-credit-lap-voice-agent)
+
 ---
 
 ## 🌟 Key Highlights & Capabilities
 
+* **Integrated Live Retell AI Web Call (898ms Latency)**: Embedded directly into the web application, allowing evaluators to speak directly to Priya over WebRTC with telecom-grade audio, Cartesia neural voice synthesis, and Deepgram Nova-2 voice activity detection.
+* **Modern SaaS Light Theme UI**: Beautiful, accessible, light-themed responsive dashboard built with React 19, Vite, and Tailwind CSS.
 * **Dynamic Slot-Filling Memory**: Extracts compound utterances out-of-order without re-asking answered questions (implements the *First Missing Question* algorithm).
 * **Immediate Disqualification Gates**: Halts calls instantly upon detecting ineligible criteria (Agricultural land, Cash income, Missing original documents, Tenure outside 3–15 years).
 * **Dedicated Transfer Switch**: Recognizes existing-loan balance transfers or EMI-reduction requests and routes them to human loan-transfer specialists.
 * **Loan Cap Consent Loop**: Tactfully negotiates loan amounts > ₹75 Lakhs by presenting the ₹75 Lakh cap before qualifying.
-* **Real-Time Voice Simulation**: Full browser microphone input (Web Speech STT) + natural voice response (TTS) + live visual slot tracker.
-* **10 Pre-Configured Test Scenarios**: 1-click verification of all edge cases and happy path flows.
+* **10 Pre-Configured Test Scenarios**: 1-click deterministic verification of all edge cases and happy path flows in the Local Rule Sandbox.
 
 ---
 
