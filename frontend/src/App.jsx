@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { TEST_SCENARIOS } from './scenariosData';
 
-const RETELL_ORB_URL = "https://agent.retellai.com/orb/agent_b6aa2c1cad76fd15ff8f321e3c?token=94f6800d5a37ccae9e8db30f9e58c405";
+const RETELL_ORB_URL = "https://agent.retellai.com/orb/agent_b6aa2c1cad76fd15ff8f321e3c?token=94f6800d5a37ccae9e8db30f9e58c405&v=4";
 const RETELL_CALL_HISTORY_URL = "https://dashboard.retellai.com/org_URqeX7dedVCNCf9UI/call-history?history=call_b12864a07ba0ba81d1b7905ea270";
 
 export default function App() {
